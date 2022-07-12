@@ -1,7 +1,7 @@
 ﻿open System
 open System.IO
 
-let romName = "OPCODE_TEST.ch8"
+let romName = "PONG"
 
 printfn $"Loading ROM {romName}"
 
@@ -14,6 +14,19 @@ let loadRom(filenname) : (byte[])[] =
             yield reader.ReadBytes(2)
 
     } |> Seq.toArray
+
+let rnd = Random()
+let data = loadRom(romName)
+let mutable programCounter:int16 = 0s
+let mutable I:int16 = 0s
+let variables: byte[] = Array.create 16 0uy
+let memory: byte[] = Array.create 4096 0uy
+let inputs:bool[] = Array.create 16 false
+let stack:int16[] = Array.create 16 0s
+let display: bool[,] = Array2D.create 64 32 false
+let mutable delayTimer:byte = 0uy
+let mutable soundTimer:byte = 0uy
+let mutable stackPointer:byte = 0uy
 
 let getLowNibble(octet):byte = 
     (byte)(octet &&& (byte)0x0F)
@@ -31,18 +44,6 @@ let splitOctet(octet) =
 
     (highNibble, lowNibble)
 
-
-let rnd = Random()
-let data = loadRom(romName)
-let mutable programCounter:int16 = 0s
-let mutable i:int16 = 0s
-let variables: byte[] = Array.create 16 0uy
-let inputs:bool[] = Array.create 16 false
-let stack:int16[] = Array.create 16 0s
-let mutable delayTimer:byte = 0uy
-let mutable soundTimer:byte = 0uy
-let mutable stackPointer:byte = 0uy
-
 let op_0NNN (octets: byte[]) = 
     let addr = getNNN(octets)/2s
     stack[(int)stackPointer] <- programCounter - 1s
@@ -55,7 +56,9 @@ let op_00EE () =
     programCounter <- addr
     
 let op_00E0 () = 
-    Console.Clear()
+    for x in 0 .. display.GetLength(0) do
+        for y in 0 .. display.GetLength(1) do
+            display[x,y] <- false
 
 let op_1NNN (octets: byte[]) = 
     programCounter <- getNNN(octets) / 2s
@@ -145,7 +148,7 @@ let op_8XYE (octets: byte[]) =
 
 
 let op_ANNN (octets: byte[]) = 
-    i <- getNNN(octets)
+    I <- getNNN(octets)
 
 let op_BNNN (octets: byte[]) = 
     programCounter <- (int16)(variables[0]) + getNNN(octets)
@@ -155,10 +158,27 @@ let op_CXNN (octets:byte[])=
     let source = (int)(getLowNibble(octets[0]))
     variables[source] <- random &&& octets[1]
 
-let op_DXYN (octets:byte[])=
-    let x = (int)(getLowNibble(octets[0]))
-    let y = (int)(getHightNibble(octets[1]))
-    raise (NotImplementedException("op_DXYN"))
+let op_DXYN (x:byte, y:byte, n:byte)=
+
+    let mutable screenUpdated = false
+
+    for i in 0uy .. n do
+        let row = memory[(int)(I+(int16)(i*8uy))]
+
+        for pixel in 0uy .. 8uy do
+            let bit = (row >>> (int)pixel) &&& 1uy
+
+            if display[(int)(x+pixel), (int)(y+i)] <> (bit = 1uy) then
+                screenUpdated <- true
+
+            display[(int)(x+pixel), (int)(y+i)] <- (bit = 1uy)
+
+    if screenUpdated then
+        variables[15] <- 1uy
+    else
+        variables[15] <- 0uy
+    
+
 
 let op_EX9E (octets:byte[]) =
     let source = (int)(getLowNibble(octets[0]))
@@ -187,10 +207,25 @@ let op_FX18 (x:byte) =
     soundTimer <- x
 
 let op_FX1E (x:byte) = 
-    i <- i + (int16)(variables[(int)x])
+    I <- I + (int16)(variables[(int)x])
 
+let op_FX33 (x:byte)=
+    let value = variables[(int)x]
+
+    memory[(int)I] <- value / 100uy
+    memory[(int)(I+(int16)1uy)] <- (value % 100uy) / 10uy
+    memory[(int)(I+(int16)2uy)] <- (value % 100uy) % 10uy
+
+let op_FX55 (x:byte) =
+    for i in 0uy .. x do
+        memory[(int)(I+(int16)i)] <- variables[(int)i]
+
+let op_FX65 (x:byte) =
+    for i in 0uy .. x do
+        variables[(int)i] <- memory[(int)(I+(int16)i)]
 
 while true do
+
     let currentCommand = data.[(int)programCounter]
 
     printfn $"{programCounter}: [0x{currentCommand[0]:X2} 0x{currentCommand[1]:X2}]"
@@ -224,7 +259,7 @@ while true do
             | (0x0Auy, _, _, _) -> op_ANNN(currentCommand)
             | (0x0Buy, _, _, _) -> op_BNNN(currentCommand)
             | (0x0Cuy, _, _, _) -> op_CXNN(currentCommand)
-            | (0x0Duy, _, _, _) -> op_DXYN(currentCommand)
+            | (0x0Duy, x, y, n) -> op_DXYN(x,y,n)
             | (0x0Euy, _, 9uy, 0x0Euy) -> op_EX9E(currentCommand)
             | (0x0Euy, _, 0x0Auy, 1uy) -> op_EXA1(currentCommand)
             | (0x0Fuy, _, 0uy, 7uy) -> op_FX07(currentCommand)
@@ -232,6 +267,9 @@ while true do
             | (0x0Fuy, x, 1uy, 5uy) -> op_FX15(x)
             | (0x0Fuy, x, 1uy, 8uy) -> op_FX18(x)
             | (0x0Fuy, x, 1uy, 0x0Euy) -> op_FX1E(x)
+            | (0x0Fuy, x, 3uy, 3uy) -> op_FX33(x)
+            | (0x0Fuy, x, 5uy, 5uy) -> op_FX55(x)
+            | (0x0Fuy, x, 6uy, 5uy) -> op_FX65(x)
             | (_, _, _, _) -> raise (Exception("Unknown opcode"))
     with 
         | ex -> 
