@@ -1,34 +1,43 @@
 ﻿open System
 open System.IO
 
-let romName = "PONG"
+let romName = "MAZE"
 
-
-let loadRom(filenname) : (byte[])[] = 
-
-    seq {
-        use reader = new BinaryReader(File.Open($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{filenname}", FileMode.Open, FileAccess.Read, FileShare.Read))
-    
-        while (reader.BaseStream.Position < reader.BaseStream.Length) do
-            yield reader.ReadBytes(2)
-
-    } |> Seq.toArray
 
 type nible = byte
 type trible = int16 //because why not, this is just full byte + nible
 
+let displayWidth = 64
+let displayHeight = 32
+
 let rnd = Random()
-let data = loadRom(romName)
-let mutable programCounter:int16 = 0s
+let mutable programCounter:int16 = 200s
 let mutable I:int16 = 0s
 let variables: byte[] = Array.create 16 0uy
 let memory: byte[] = Array.create 4096 0uy
 let inputs:bool[] = Array.create 16 false
 let stack:int16[] = Array.create 16 0s
-let display: bool[,] = Array2D.create 64 32 false
+let display: bool[,] = Array2D.create displayWidth displayHeight false
 let mutable delayTimer:byte = 0uy
 let mutable soundTimer:byte = 0uy
 let mutable stackPointer:byte = 0uy
+
+//slow as hell, but who cares
+let loadRom(filenname, buffer: byte[]) = 
+
+    let mutable index = 200
+    use reader = new BinaryReader(File.Open($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{filenname}", FileMode.Open, FileAccess.Read, FileShare.Read))   
+
+    while (reader.BaseStream.Position < reader.BaseStream.Length) do
+        let bytes = reader.ReadBytes(2)
+        buffer[index] <- bytes[0]
+        buffer[index+1] <- bytes[1]
+        index <- index + 2
+
+let createMemoryDump(buffer: byte[]) = 
+    use writer = new BinaryWriter(File.Create($"{rnd.NextInt64()}.hex"))
+
+    writer.Write(buffer)
 
 let getLowNibble(octet):nible = 
     (byte)(octet &&& (byte)0x0F)
@@ -36,9 +45,9 @@ let getLowNibble(octet):nible =
 let getHightNibble(octet):nible = 
     (byte)(octet >>> 4)
 
-let getNNN(octets: byte[]): trible =
-    let low0 = getLowNibble(octets[0])
-    BitConverter.ToInt16([| octets[1]; low0 |], 0)
+let getNNN(byte1:byte, byte2:byte): trible =
+    let low0 = getLowNibble(byte1)
+    BitConverter.ToInt16([| byte2; low0 |], 0)
 
 let splitOctet(octet): nible*nible = 
     let highNibble = getHightNibble(octet)
@@ -46,35 +55,36 @@ let splitOctet(octet): nible*nible =
 
     (highNibble, lowNibble)
 
-let op_0NNN (nnn: trible) = 
-    stack[(int)stackPointer] <- programCounter - 1s
-    stackPointer <- stackPointer + 1uy
-    programCounter <- nnn
-
 let op_00EE () = 
     stackPointer <- stackPointer - 1uy
     let addr = stack[(int)stackPointer]
     programCounter <- addr
     
 let op_00E0 () = 
-    for x in 0 .. display.GetLength(0) do
-        for y in 0 .. display.GetLength(1) do
+    for x in 0 .. displayWidth-1 do
+        for y in 0 .. displayHeight-1 do
             display[x,y] <- false
 
 let op_1NNN (nnn:trible) = 
-    programCounter <- nnn / 2s
+    programCounter <- nnn 
+
+let op_2NNN (nnn: trible) = 
+    stack[(int)stackPointer] <- programCounter - 2s
+    stackPointer <- stackPointer + 1uy
+    programCounter <- nnn
+    printfn($"Call subroutine at {programCounter}")
 
 let op_3XNN (x:nible, nn:byte) = 
     if variables[(int)x] = nn then
-        programCounter <- programCounter + 1s
+        programCounter <- programCounter + 2s
 
 let op_4XNN (x:nible, nn:byte) = 
     if variables[(int)x] <> nn then
-        programCounter <- programCounter + 1s
+        programCounter <- programCounter + 2s
 
 let op_5XY0 (x:nible, y:nible) = 
     if variables[(int)x] = variables[(int)y] then
-        programCounter <- programCounter + 1s
+        programCounter <- programCounter + 2s
 
 let op_6XNN (x:nible, nn:byte)=
     variables[(int)x] <- nn
@@ -155,12 +165,12 @@ let op_DXYN (x:byte, y:byte, n:byte)=
 let op_EX9E (x:nible) =
     let key = inputs[(int)x]
     if key then
-        programCounter <- programCounter+1s
+        programCounter <- programCounter+2s
 
 let op_EXA1 (x:nible) =
     let key = inputs[(int)x]
     if not key then
-        programCounter <- programCounter+1s
+        programCounter <- programCounter+2s
 
 let op_FX07 (x:nible) = 
     variables[(int)x] <- delayTimer
@@ -192,27 +202,32 @@ let op_FX65 (x:nible) =
     for i in 0uy .. x do
         variables[(int)i] <- memory[(int)(I+(int16)i)]
 
+loadRom(romName, memory)
+
 while true do
 
-    let currentCommand = data.[(int)programCounter]
+    let command1 = memory.[(int)programCounter]
+    let command2 = memory.[(int)programCounter+1]
 
-    programCounter <- programCounter + 1s
 
-    let (firstHigh, firstLow) = splitOctet(currentCommand[0])
-    let (secondHigh, secondLow) = splitOctet(currentCommand[1])
+    printfn $"{programCounter}: [0x{command1:X2} 0x{command2:X2}]"
+
+    programCounter <- programCounter + 2s
+
+    let (firstHigh, firstLow) = splitOctet(command1)
+    let (secondHigh, secondLow) = splitOctet(command2)
 
     try
         match (firstHigh, firstLow, secondHigh, secondLow) with
             | (0uy ,0uy, 0x0Euy, 0uy) -> op_00E0()
             | (0uy, 0uy, 0x0Euy, 0x0Euy) -> op_00EE()
-            | (0uy, _, _, _) -> op_0NNN(getNNN(currentCommand))
-            | (1uy, _, _, _) -> op_1NNN(getNNN(currentCommand))
-            | (2uy, _, _, _) -> op_0NNN(getNNN(currentCommand))
-            | (3uy, x, _, _) -> op_3XNN(x, currentCommand[1])
-            | (4uy, x, _, _) -> op_4XNN(x, currentCommand[1])
+            | (1uy, _, _, _) -> op_1NNN(getNNN(command1, command2))
+            | (2uy, _, _, _) -> op_2NNN(getNNN(command1, command2))
+            | (3uy, x, _, _) -> op_3XNN(x, command2)
+            | (4uy, x, _, _) -> op_4XNN(x, command2)
             | (5uy, x, y, 0uy) -> op_5XY0(x, y)
-            | (6uy, x, _, _) -> op_6XNN(x, currentCommand[1])
-            | (7uy, x, _, _) -> op_7XNN(x, currentCommand[1])
+            | (6uy, x, _, _) -> op_6XNN(x, command2)
+            | (7uy, x, _, _) -> op_7XNN(x, command2)
             | (8uy, x, y, 0uy) -> op_8XY0(x,y)
             | (8uy, x, y, 1uy) -> op_8XY1(x,y)
             | (8uy, x, y, 2uy) -> op_8XY2(x,y)
@@ -222,9 +237,9 @@ while true do
             | (8uy, x, _, 6uy) -> op_8XY6(x)
             | (8uy, x, y, 7uy) -> op_8XY7(x,y)
             | (8uy, x, _, 0xEuy) -> op_8XYE(x)
-            | (0x0Auy, _, _, _) -> op_ANNN(getNNN(currentCommand))
-            | (0x0Buy, _, _, _) -> op_BNNN(getNNN(currentCommand))
-            | (0x0Cuy, x, _, _) -> op_CXNN(x, currentCommand[1])
+            | (0x0Auy, _, _, _) -> op_ANNN(getNNN(command1, command2))
+            | (0x0Buy, _, _, _) -> op_BNNN(getNNN(command1, command2))
+            | (0x0Cuy, x, _, _) -> op_CXNN(x, command2)
             | (0x0Duy, x, y, n) -> op_DXYN(x,y,n)
             | (0x0Euy, x, 9uy, 0x0Euy) -> op_EX9E(x)
             | (0x0Euy, x, 0x0Auy, 1uy) -> op_EXA1(x)
@@ -239,8 +254,8 @@ while true do
             | (_, _, _, _) -> raise (Exception("Unknown opcode"))
     with 
         | ex -> 
-            let message = $"Unable to process with opcode {currentCommand[0]:X2} {currentCommand[1]:X2} at position {(programCounter-1s)*2s}"
+            let message = $"Unable to process with opcode {command1:X2} {command2:X2} at position {programCounter-2s}"
+            createMemoryDump(memory)
             raise (Exception(message, ex))
-
 
 
