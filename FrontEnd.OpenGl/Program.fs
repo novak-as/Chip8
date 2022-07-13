@@ -12,10 +12,13 @@ type Chip8 () as chip =
 
     override x.Initialize() =
     
+        graphics.PreferredBackBufferWidth <- 960
+        graphics.PreferredBackBufferHeight <- 480
+
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "octojam1title.ch8"
+        let romName = "test_opcode.ch8"
         emulator.load($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
 
         ()
@@ -25,17 +28,30 @@ type Chip8 () as chip =
             emulator.tick()
          with 
             | ex -> 
-                let (commandByte1, commandByte2) = emulator.command
-                let message = $"Unable to process with opcode {commandByte1:X2} {commandByte2:X2} at position {emulator.programCounter-2s}"
+                printfn $"{ex.Message}"
+                printfn $"{ex.InnerException}"
+
                 createMemoryDump(emulator.memory)
-                raise (Exception(message, ex))
+                exit(1)
 
         ()
  
     override this.Draw (gameTime) =
 
-        chip.GraphicsDevice.Clear Color.Black
-        
+        //TODO: this should be done only once
+        let blockWidth = graphics.PreferredBackBufferWidth / emulator.screenWidth
+        let blockHeight = graphics.PreferredBackBufferHeight / emulator.screenHeight
+
+        let texture = Texture2D(chip.GraphicsDevice, 1,1)
+        texture.SetData([| Color.White |])
+
+        spriteBatch.Begin()
+        for x in 0 .. emulator.screenWidth-1 do
+            for y in 0 .. emulator.screenHeight-1 do
+                let status = emulator.screen[x,y]
+                spriteBatch.Draw(texture, Rectangle(x*blockWidth, y*blockHeight, blockWidth, blockHeight),
+                    if status then Color.White else Color.Black)
+        spriteBatch.End()
 
         ()
 

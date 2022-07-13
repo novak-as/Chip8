@@ -4,7 +4,7 @@ open System
 open System.IO
 
 type nible = byte
-type trible = int16 //because why not, this is just full byte + nible
+type trible = uint16 //because why not, this is just full byte + nible
 type chip8Command = byte*byte
 
 type Emulator () =
@@ -12,13 +12,13 @@ type Emulator () =
     let displayWidth = 64
     let displayHeight = 32
 
-    let mutable _programCounter:int16 = 200s
+    let mutable _programCounter:uint16 = 200us
     let _memory: byte[] = Array.create 4096 0uy
     let _rnd = Random()
-    let mutable _i:int16 = 0s
+    let mutable _i:uint16 = 0us
     let _variables: byte[] = Array.create 16 0uy
     let _inputs:bool[] = Array.create 16 false
-    let _stack:int16[] = Array.create 16 0s
+    let _stack:uint16[] = Array.create 16 0us
     let _display: bool[,] = Array2D.create displayWidth displayHeight false
     let mutable _delayTimer:byte = 0uy
     let mutable _soundTimer:byte = 0uy
@@ -32,107 +32,134 @@ type Emulator () =
 
     let getNNN(byte1:byte, byte2:byte): trible =
         let low0 = getLowNibble(byte1)
-        BitConverter.ToInt16([| byte2; low0 |], 0)
+        let result = BitConverter.ToUInt16([| byte2; low0 |], 0)
+        result
+        
 
     let splitOctet(octet): nible*nible = 
         let highNibble = getHightNibble(octet)
         let lowNibble = getLowNibble(octet)
 
         (highNibble, lowNibble)
+   
+    let op_00E0 () = 
+        for x in 0 .. displayWidth-1 do
+            for y in 0 .. displayHeight-1 do
+                _display[x,y] <- false
+        printfn("Clean screen")
 
     let op_00EE () = 
         _stackPointer <- _stackPointer - 1uy
         let addr = _stack[(int)_stackPointer]
         _programCounter <- addr
-    
-    let op_00E0 () = 
-        for x in 0 .. displayWidth-1 do
-            for y in 0 .. displayHeight-1 do
-                _display[x,y] <- false
+        printfn $"return from subroutine to {_programCounter}"
 
     let op_1NNN (nnn:trible) = 
         _programCounter <- nnn 
+        printfn $"jump to {_programCounter}"
 
     let op_2NNN (nnn: trible) = 
-        _stack[(int)_stackPointer] <- _programCounter - 2s
+        _stack[(int)_stackPointer] <- _programCounter - 2us
         _stackPointer <- _stackPointer + 1uy
         _programCounter <- nnn
         printfn($"Call subroutine at {_programCounter}")
 
     let op_3XNN (x:nible, nn:byte) = 
         if _variables[(int)x] = nn then
-            _programCounter <- _programCounter + 2s
+            _programCounter <- _programCounter + 2us
+        printfn $"Skip if v[{x}] == {nn}: {_variables[(int)x] = nn}"
 
     let op_4XNN (x:nible, nn:byte) = 
         if _variables[(int)x] <> nn then
-            _programCounter <- _programCounter + 2s
+            _programCounter <- _programCounter + 2us
+        printfn $"Skip if v[{x}] != {nn}: {_variables[(int)x] <> nn}"
 
     let op_5XY0 (x:nible, y:nible) = 
         if _variables[(int)x] = _variables[(int)y] then
-            _programCounter <- _programCounter + 2s
+            _programCounter <- _programCounter + 2us
+        printfn $"Skip if v[{x}] == v[{y}]: {_variables[(int)x] = _variables[(int)y]}"
 
     let op_6XNN (x:nible, nn:byte)=
         _variables[(int)x] <- nn
+        printfn $"set v[{x}] <- {nn}"
 
     let op_7XNN (x:nible, nn:byte)=
         _variables[(int)x] <- _variables[(int)x] + nn
+        printfn $"v[{x}] += {nn}: {_variables[(int)x]}"
 
     let op_8XY0 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)y]
+        printfn $"v[{x}] = v[{y}]: {_variables[(int)y]}"
 
     let op_8XY1 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] ||| _variables[(int)y]
+        printfn $"v[{x}] |= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY2 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] &&& _variables[(int)y]
+        printfn $"v[{x}] &= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY3 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] ^^^ _variables[(int)y]
+        printfn $"v[{x}] ^= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY4 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] + _variables[(int)y]
+        printfn $"v[{x}] += v[{y}]: {_variables[(int)x]}"
 
     let op_8XY5 (x:nible, y:nible) = 
         if _variables[(int)y] > _variables[(int)x] then 
             _variables[15] <- 0uy
         else
             _variables[15] <- 1uy
-
         _variables[(int)x] <- _variables[(int)x] - _variables[(int)y]
+
+        printfn $"v[{x}] -= v[{y}]: {_variables[(int)x]}, v[0xFF]: {_variables[15]}"
 
     let op_8XY6 (x:nible) =    
         _variables[15] <- _variables[(int)x] &&& 1uy
         _variables[(int)x] <- _variables[(int)x] >>> 1
+
+        printfn $""
 
     let op_8XY7 (x:nible, y:nible) = 
         if _variables[(int)x] > _variables[(int)y] then
             _variables[15] <- 0uy
         else
             _variables[15] <- 1uy
-
         _variables[(int)x] <- _variables[(int)y] - _variables[(int)x]
+
+        printfn $""
 
     let op_8XYE (x:nible) = 
         _variables[15] <- (_variables[(int)x] &&& 0x80uy) >>> 7
         _variables[(int)x] <- _variables[(int)x] <<< 1
 
+        printfn $""
+
 
     let op_ANNN (nnn:trible) = 
         _i <- nnn
 
+        printfn $"I = {nnn}"
+
     let op_BNNN (nnn:trible) = 
-        _programCounter <- (int16)(_variables[0]) + nnn
+        _programCounter <- (uint16)(_variables[0]) + nnn
+
+        printfn $""
 
     let op_CXNN (x:nible, nn:byte)=
         let random = (byte)(_rnd.Next(0,256))
         _variables[(int)x] <- random &&& nn
+
+        printfn $"v[{x}] = random: {_variables[(int)x]}"
 
     let op_DXYN (x:byte, y:byte, n:byte)=
 
         let mutable screenUpdated = false
 
         for i in 0uy .. n do
-            let row = _memory[(int)(_i+(int16)(i*8uy))]
+            let row = _memory[(int)(_i+(uint16)(i*8uy))]
 
             for pixel in 0uy .. 8uy do
                 let bit = (row >>> (int)pixel) &&& 1uy
@@ -146,53 +173,75 @@ type Emulator () =
             _variables[15] <- 1uy
         else
             _variables[15] <- 0uy
+
+        printfn $"draw screen"
     
     let op_EX9E (x:nible) =
         let key = _inputs[(int)x]
         if key then
-            _programCounter <- _programCounter+2s
+            _programCounter <- _programCounter+2us
+
+        printfn $""
 
     let op_EXA1 (x:nible) =
         let key = _inputs[(int)x]
         if not key then
-            _programCounter <- _programCounter+2s
+            _programCounter <- _programCounter+2us
+
+        printfn $""
 
     let op_FX07 (x:nible) = 
         _variables[(int)x] <- _delayTimer
 
+        printfn $""
+
     let op_FX0A (x:nible) = 
         _variables[(int)x] <- (byte)(Console.ReadKey().Key)
+
+        printfn $""
 
     let op_FX15 (x:nible) = 
         _delayTimer <- x
 
+        printfn $""
+
     let op_FX18 (x:nible) = 
         _soundTimer <- x
 
+        printfn $""
+
     let op_FX1E (x:nible) = 
-        _i <- _i + (int16)(_variables[(int)x])
+        _i <- _i + (uint16)(_variables[(int)x])
+
+        printfn $"I += v[{x}]: {_i}"
 
     let op_FX33 (x:nible)=
         let value = _variables[(int)x]
 
         _memory[(int)_i] <- value / 100uy
-        _memory[(int)(_i+(int16)1uy)] <- (value % 100uy) / 10uy
-        _memory[(int)(_i+(int16)2uy)] <- (value % 100uy) % 10uy
+        _memory[(int)(_i+(uint16)1uy)] <- (value % 100uy) / 10uy
+        _memory[(int)(_i+(uint16)2uy)] <- (value % 100uy) % 10uy
+
+        printfn $""
 
     let op_FX55 (x:nible) =
         for i in 0uy .. x do
-            _memory[(int)(_i+(int16)i)] <- _variables[(int)i]
+            _memory[(int)(_i+(uint16)i)] <- _variables[(int)i]
+
+        printfn $""
 
     let op_FX65 (x:nible) =
         for i in 0uy .. x do
-            _variables[(int)i] <- _memory[(int)(_i+(int16)i)]
+            _variables[(int)i] <- _memory[(int)(_i+(uint16)i)]
+            printfn $"v[{i}] = m[{_i+(uint16)i}]: {_memory[(int)(_i+(uint16)i)]}"
 
-    member this.programCounter = _programCounter
-    member this.command = (_memory.[(int)_programCounter], _memory.[(int)_programCounter+1])
+    member this.screenWidth = displayWidth
+    member this.screenHeight = displayHeight
+    member this.screen = _display
     member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
 
     member this.load(filename:string)=
-        let mutable index = 200
+        let mutable index = (int)_programCounter
         use reader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read))   
 
         while (reader.BaseStream.Position < reader.BaseStream.Length) do
@@ -206,9 +255,9 @@ type Emulator () =
         let command2 = _memory.[(int)_programCounter+1]
 
 
-        printfn $"{_programCounter}: [0x{command1:X2} 0x{command2:X2}]"
+        printf $"{_programCounter}: [0x{command1:X2} 0x{command2:X2}] | "
 
-        _programCounter <- _programCounter + 2s
+        _programCounter <- _programCounter + 2us
 
         let (firstHigh, firstLow) = splitOctet(command1)
         let (secondHigh, secondLow) = splitOctet(command2)
@@ -250,7 +299,7 @@ type Emulator () =
                 | (_, _, _, _) -> raise (Exception("Unknown opcode"))
         with 
             | ex -> 
-                let message = $"Unable to process with opcode {command1:X2} {command2:X2} at position {_programCounter-2s}"
+                let message = $"Unable to process with opcode {command1:X2} {command2:X2} at position {_programCounter-2us}"
                 raise (Exception(message, ex))
 
 
