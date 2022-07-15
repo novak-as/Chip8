@@ -10,6 +10,10 @@ type Chip8 () as chip =
     let mutable spriteBatch = Unchecked.defaultof<SpriteBatch>
     let emulator = Emulator()
 
+    do
+        chip.IsFixedTimeStep <- true
+        chip.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/5.0)
+
     override x.Initialize() =
     
         graphics.PreferredBackBufferWidth <- 960
@@ -18,7 +22,7 @@ type Chip8 () as chip =
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "test_opcode.ch8"
+        let romName = "PUZZLE"
         emulator.load($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
 
         ()
@@ -39,18 +43,26 @@ type Chip8 () as chip =
     override this.Draw (gameTime) =
 
         //TODO: this should be done only once
-        let blockWidth = graphics.PreferredBackBufferWidth / emulator.screenWidth
-        let blockHeight = graphics.PreferredBackBufferHeight / emulator.screenHeight
+        let blockWidth = graphics.PreferredBackBufferWidth / (int)emulator.screenWidth
+        let blockHeight = graphics.PreferredBackBufferHeight / (int)emulator.screenHeight
 
         let texture = Texture2D(chip.GraphicsDevice, 1,1)
         texture.SetData([| Color.White |])
 
         spriteBatch.Begin()
-        for x in 0 .. emulator.screenWidth-1 do
-            for y in 0 .. emulator.screenHeight-1 do
-                let status = emulator.screen[x,y]
-                spriteBatch.Draw(texture, Rectangle(x*blockWidth, y*blockHeight, blockWidth, blockHeight),
-                    if status then Color.White else Color.Black)
+        let screen = emulator.screen
+
+        for x in 0 .. (int)emulator.screenWidth - 1 do
+            for y in 0 .. (int)emulator.screenHeight - 1 do
+                
+                let isSet = emulator.getDisplayValue(x,y)
+
+                let screenPositionX = x * blockWidth
+                let screenPositionY = y * blockHeight
+
+                spriteBatch.Draw(texture, Rectangle(screenPositionX, screenPositionY, blockWidth, blockHeight),
+                            if isSet then Color.White else Color.Black)
+
         spriteBatch.End()
 
         ()

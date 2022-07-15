@@ -11,18 +11,42 @@ type Emulator () =
 
     let displayWidth = 64
     let displayHeight = 32
+    let displayBufferLength = displayWidth / 8 * displayHeight
 
-    let mutable _programCounter:uint16 = 200us
+    let mutable _programCounter:uint16 = 500us
     let _memory: byte[] = Array.create 4096 0uy
     let _rnd = Random()
     let mutable _i:uint16 = 0us
     let _variables: byte[] = Array.create 16 0uy
     let _inputs:bool[] = Array.create 16 false
     let _stack:uint16[] = Array.create 16 0us
-    let _display: bool[,] = Array2D.create displayWidth displayHeight false
     let mutable _delayTimer:byte = 0uy
     let mutable _soundTimer:byte = 0uy
     let mutable _stackPointer:byte = 0uy
+
+    //technically, this is a display driver
+    let getDisplayUnpackedByte(x:int, y:int) = 
+        let displayBufferPosition = _memory.Length - (int)displayBufferLength
+
+        let packedX = x / 8
+        let packedBit = 7 - x % 8
+
+        let spritePosition = displayBufferPosition + packedX + (int)y*(int)displayWidth / 8
+
+        let sprite = _memory[spritePosition]
+        let value = sprite >>> packedBit
+        (value &&& 1uy) = 1uy
+
+    let getDisplayPackedByte(i:int) = 
+        let displayBufferPosition = _memory.Length - (int)displayBufferLength
+        _memory[displayBufferPosition + i]
+
+    let setDisplayPackedByte2D(x:int, y:int, value:byte) = 
+        let address = y * (int)displayWidth/8 + x
+        _memory[_memory.Length - (int)displayBufferLength + address] <- value
+
+    let setDisplayPackedByte(i:int, value: byte) = 
+        _memory[_memory.Length - (int)displayBufferLength + i] <- value
 
     let getLowNibble(octet):nible = 
         (byte)(octet &&& (byte)0x0F)
@@ -43,9 +67,8 @@ type Emulator () =
         (highNibble, lowNibble)
    
     let op_00E0 () = 
-        for x in 0 .. displayWidth-1 do
-            for y in 0 .. displayHeight-1 do
-                _display[x,y] <- false
+        for i in 0 .. (int)displayBufferLength - 1 do
+            setDisplayPackedByte(i, 0uy)
         printfn("Clean screen")
 
     let op_00EE () = 
@@ -156,25 +179,24 @@ type Emulator () =
 
     let op_DXYN (x:byte, y:byte, n:byte)=
 
-        let mutable screenUpdated = false
+        let mutable collisionDetected = false
 
-        for i in 0uy .. n do
-            let row = _memory[(int)(_i+(uint16)(i*8uy))]
+        let coordinateX = _variables[(int)x]
+        let coordinateY = _variables[(int)y]
 
-            for pixel in 0uy .. 8uy do
-                let bit = (row >>> (int)pixel) &&& 1uy
+        for i in 0uy .. n - 1uy do
+                       
+            let sprite = _memory[(int)(_i+(uint16)i)]
+            let displayed = getDisplayPackedByte((int)i)
+            let xored = displayed ^^^ sprite
 
-                if _display[(int)(x+pixel), (int)(y+i)] <> (bit = 1uy) then
-                    screenUpdated <- true
+            setDisplayPackedByte2D((int)coordinateX, (int)coordinateY + (int)i, xored)
+            collisionDetected <- collisionDetected || (xored <> displayed)
 
-                _display[(int)(x+pixel), (int)(y+i)] <- (bit = 1uy)
-
-        if screenUpdated then
+        if collisionDetected then
             _variables[15] <- 1uy
-        else
-            _variables[15] <- 0uy
 
-        printfn $"draw screen"
+        printfn $"draw screen at ({x};{y}), total {n} rows; collision {collisionDetected}"
     
     let op_EX9E (x:nible) =
         let key = _inputs[(int)x]
@@ -215,6 +237,9 @@ type Emulator () =
 
         printfn $"I += v[{x}]: {_i}"
 
+    let op_FX19 (x:nible) =
+        raise (NotImplementedException())
+
     let op_FX33 (x:nible)=
         let value = _variables[(int)x]
 
@@ -237,8 +262,11 @@ type Emulator () =
 
     member this.screenWidth = displayWidth
     member this.screenHeight = displayHeight
-    member this.screen = _display
+    member this.screnBufferLength = displayBufferLength
+    member this.screen = System.ReadOnlyMemory(_memory,_memory.Length - (int)displayBufferLength, (int)displayBufferLength).Span
     member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
+
+    member this.getDisplayValue(x,y) = getDisplayUnpackedByte(x,y)
 
     member this.load(filename:string)=
         let mutable index = (int)_programCounter
@@ -293,6 +321,7 @@ type Emulator () =
                 | (0x0Fuy, x, 1uy, 5uy) -> op_FX15(x)
                 | (0x0Fuy, x, 1uy, 8uy) -> op_FX18(x)
                 | (0x0Fuy, x, 1uy, 0x0Euy) -> op_FX1E(x)
+                | (0xFuy, x, 2uy, 9uy) -> op_FX19(x)
                 | (0x0Fuy, x, 3uy, 3uy) -> op_FX33(x)
                 | (0x0Fuy, x, 5uy, 5uy) -> op_FX55(x)
                 | (0x0Fuy, x, 6uy, 5uy) -> op_FX65(x)
