@@ -4,70 +4,117 @@ open System
 open System.IO
 
 type nible = byte
-type trible = uint16 //because why not, this is just full byte + nible
+type uint12 = uint16 
 type chip8Command = byte*byte
 
-type Emulator () =
 
-    let displayWidth = 64
-    let displayHeight = 32
-    let displayBufferLength = displayWidth / 8 * displayHeight
+let getLow4Bit(octet:byte):nible = 
+    byte(octet &&& (byte)0x0F)
 
-    let mutable _programCounter:uint16 = 500us
-    let _memory: byte[] = Array.create 4096 0uy
+let getHight4Bit(octet:byte):nible = 
+    byte(octet >>> 4)
+
+let getHigh8Bit(word: uint16) = 
+    match BitConverter.IsLittleEndian with
+        | true -> word >>> 8
+        | false -> word &&& 0x00FFus
+
+let getLow8Bit(word: uint16) = 
+    match BitConverter.IsLittleEndian with
+        | true -> word &&& 0x00FFus
+        | false -> word >>> 8
+                
+let getLow12Bit(byte1:byte, byte2:byte): uint12 =
+    let low0 = getLow4Bit(byte1)
+    let result = if BitConverter.IsLittleEndian then BitConverter.ToUInt16([| byte2; low0 |], 0) else BitConverter.ToUInt16([| low0; byte2; |], 0)
+    result
+
+let splitOctet(octet:byte): byte*byte =
+    let n1 = getHight4Bit(octet)
+    let n2 = getLow4Bit(octet)
+    (n1, n2)
+
+
+type Emulator ()=
+
+    static let _screenWidth = 64
+    static let _screenHeight = 32
+    static let _displayBufferLength = _screenWidth / 8 * _screenHeight
+    static let _stackBufferLength = 96
+
+    static let _totalMemory = 4096
+    static let _codeSectionShift = 0x200us
+    static let _displaySectionShift = _totalMemory - _displayBufferLength
+    static let _stackSectionShift = 0x0EA0
+
+    let mutable _programCounter:uint16 = _codeSectionShift
+    let _memory: byte[] = Array.create _totalMemory 0uy
     let _rnd = Random()
     let mutable _i:uint16 = 0us
     let _variables: byte[] = Array.create 16 0uy
     let _inputs:bool[] = Array.create 16 false
-    let _stack:uint16[] = Array.create 16 0us
+    let _stack: uint16[] = Array.create _stackBufferLength 0us //_memory.AsSpan(_stackSectionShift, _stackBufferLength)
     let mutable _delayTimer:byte = 0uy
     let mutable _soundTimer:byte = 0uy
     let mutable _stackPointer:byte = 0uy
 
     //technically, this is a display driver
     let getDisplayUnpackedByte(x:int, y:int) = 
-        let displayBufferPosition = _memory.Length - (int)displayBufferLength
+        let displayBufferPosition = _memory.Length - (int)_displayBufferLength
 
         let packedX = x / 8
         let packedBit = 7 - x % 8
 
-        let spritePosition = displayBufferPosition + packedX + (int)y*(int)displayWidth / 8
+        let spritePosition = displayBufferPosition + packedX + (int)y*(int)_screenWidth / 8
 
         let sprite = _memory[spritePosition]
         let value = sprite >>> packedBit
         (value &&& 1uy) = 1uy
 
     let getDisplayPackedByte(i:int) = 
-        let displayBufferPosition = _memory.Length - (int)displayBufferLength
+        let displayBufferPosition = _memory.Length - (int)_displayBufferLength
         _memory[displayBufferPosition + i]
 
     let setDisplayPackedByte2D(x:int, y:int, value:byte) = 
-        let address = y * (int)displayWidth/8 + x
-        _memory[_memory.Length - (int)displayBufferLength + address] <- value
+        let address = y * (int)_screenWidth/8 + x
+
+        printfn $"set packed byte at {_memory.Length - (int)_displayBufferLength + address} to {value}"
+
+        if address < _displayBufferLength then           
+            _memory[_memory.Length - (int)_displayBufferLength + address] <- value
 
     let setDisplayPackedByte(i:int, value: byte) = 
-        _memory[_memory.Length - (int)displayBufferLength + i] <- value
+        _memory[_memory.Length - (int)_displayBufferLength + i] <- value
 
-    let getLowNibble(octet):nible = 
-        (byte)(octet &&& (byte)0x0F)
+    let loadCode(code: ReadOnlySpan<byte>) = 
+        let targetSpan = _memory.AsSpan(int(_programCounter))
+        code.CopyTo(targetSpan)
+        ()
 
-    let getHightNibble(octet):nible = 
-        (byte)(octet >>> 4)
+    let loadSprites() = 
+        let sprites:byte[] = [|
+            0xF0uy; 0x90uy; 0x90uy; 0x90uy; 0xF0uy;
+            0x20uy; 0x60uy; 0x20uy; 0x20uy; 0x70uy;
+            0xF0uy; 0x10uy; 0xF0uy; 0x80uy; 0xF0uy;
+            0xF0uy; 0x10uy; 0xF0uy; 0x10uy; 0xF0uy;
+            0x90uy; 0x90uy; 0xF0uy; 0x10uy; 0x10uy;
+            0xF0uy; 0x80uy; 0xF0uy; 0x10uy; 0xF0uy;
+            0xF0uy; 0x80uy; 0xF0uy; 0x90uy; 0xF0uy;
+            0xF0uy; 0x10uy; 0x20uy; 0x40uy; 0x40uy;
+            0xF0uy; 0x90uy; 0xF0uy; 0x90uy; 0xF0uy;
+            0xF0uy; 0x90uy; 0xF0uy; 0x10uy; 0xF0uy;
+            0xF0uy; 0x90uy; 0xF0uy; 0x90uy; 0x90uy;
+            0xE0uy; 0x90uy; 0xE0uy; 0x90uy; 0xE0uy;
+            0xF0uy; 0x80uy; 0x80uy; 0x80uy; 0xF0uy;
+            0xE0uy; 0x90uy; 0x90uy; 0x90uy; 0xE0uy;
+            0xF0uy; 0x80uy; 0xF0uy; 0x80uy; 0xF0uy;
+            0xF0uy; 0x80uy; 0xF0uy; 0x80uy; 0x80uy
+        |]
 
-    let getNNN(byte1:byte, byte2:byte): trible =
-        let low0 = getLowNibble(byte1)
-        let result = BitConverter.ToUInt16([| byte2; low0 |], 0)
-        result
-        
-
-    let splitOctet(octet): nible*nible = 
-        let highNibble = getHightNibble(octet)
-        let lowNibble = getLowNibble(octet)
-
-        (highNibble, lowNibble)
+        Array.Copy(sprites, _memory, sprites.Length)
    
     let op_00E0 () = 
-        for i in 0 .. (int)displayBufferLength - 1 do
+        for i in 0 .. (int)_displayBufferLength - 1 do
             setDisplayPackedByte(i, 0uy)
         printfn("Clean screen")
 
@@ -77,12 +124,12 @@ type Emulator () =
         _programCounter <- addr
         printfn $"return from subroutine to {_programCounter}"
 
-    let op_1NNN (nnn:trible) = 
+    let op_1NNN (nnn:uint12) = 
         _programCounter <- nnn 
         printfn $"jump to {_programCounter}"
 
-    let op_2NNN (nnn: trible) = 
-        _stack[(int)_stackPointer] <- _programCounter - 2us
+    let op_2NNN (nnn: uint12) = 
+        _stack[(int)_stackPointer] <- _programCounter
         _stackPointer <- _stackPointer + 1uy
         _programCounter <- nnn
         printfn($"Call subroutine at {_programCounter}")
@@ -161,12 +208,12 @@ type Emulator () =
         printfn $""
 
 
-    let op_ANNN (nnn:trible) = 
+    let op_ANNN (nnn:uint12) = 
         _i <- nnn
 
         printfn $"I = {nnn}"
 
-    let op_BNNN (nnn:trible) = 
+    let op_BNNN (nnn:uint12) = 
         _programCounter <- (uint16)(_variables[0]) + nnn
 
         printfn $""
@@ -184,8 +231,7 @@ type Emulator () =
         let coordinateX = _variables[(int)x]
         let coordinateY = _variables[(int)y]
 
-        for i in 0uy .. n - 1uy do
-                       
+        for i in 0us .. (uint16)n - 1us do           
             let sprite = _memory[(int)(_i+(uint16)i)]
             let displayed = getDisplayPackedByte((int)i)
             let xored = displayed ^^^ sprite
@@ -196,7 +242,7 @@ type Emulator () =
         if collisionDetected then
             _variables[15] <- 1uy
 
-        printfn $"draw screen at ({x};{y}), total {n} rows; collision {collisionDetected}"
+        printfn $"draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
     
     let op_EX9E (x:nible) =
         let key = _inputs[(int)x]
@@ -218,9 +264,9 @@ type Emulator () =
         printfn $""
 
     let op_FX0A (x:nible) = 
-        _variables[(int)x] <- (byte)(Console.ReadKey().Key)
+        //_variables[(int)x] <- (byte)(Console.ReadKey().Key)
 
-        printfn $""
+        printfn $"Readkey"
 
     let op_FX15 (x:nible) = 
         _delayTimer <- x
@@ -237,8 +283,10 @@ type Emulator () =
 
         printfn $"I += v[{x}]: {_i}"
 
-    let op_FX19 (x:nible) =
-        raise (NotImplementedException())
+    let op_FX29 (x:nible) =
+        let number = _variables[(int)x]
+        _i <- (uint16)number * 5us
+        printfn $"I = addr({x}): {_i}"
 
     let op_FX33 (x:nible)=
         let value = _variables[(int)x]
@@ -260,47 +308,55 @@ type Emulator () =
             _variables[(int)i] <- _memory[(int)(_i+(uint16)i)]
             printfn $"v[{i}] = m[{_i+(uint16)i}]: {_memory[(int)(_i+(uint16)i)]}"
 
-    member this.screenWidth = displayWidth
-    member this.screenHeight = displayHeight
-    member this.screnBufferLength = displayBufferLength
-    member this.screen = System.ReadOnlyMemory(_memory,_memory.Length - (int)displayBufferLength, (int)displayBufferLength).Span
-    member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
+    let fetch(): byte*byte = 
+        let byte1 = _memory.[(int)_programCounter]
+        let byte2 = _memory.[(int)_programCounter+1]
 
-    member this.getDisplayValue(x,y) = getDisplayUnpackedByte(x,y)
-
-    member this.load(filename:string)=
-        let mutable index = (int)_programCounter
-        use reader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read))   
-
-        while (reader.BaseStream.Position < reader.BaseStream.Length) do
-            let bytes = reader.ReadBytes(2)
-            _memory[index] <- bytes[0]
-            _memory[index+1] <- bytes[1]
-            index <- index + 2
-
-    member this.tick()=
-        let command1 = _memory.[(int)_programCounter]
-        let command2 = _memory.[(int)_programCounter+1]
-
-
-        printf $"{_programCounter}: [0x{command1:X2} 0x{command2:X2}] | "
+        printf $"{_programCounter}: [0x{byte1:X2} 0x{byte2:X2}] | "
 
         _programCounter <- _programCounter + 2us
 
-        let (firstHigh, firstLow) = splitOctet(command1)
-        let (secondHigh, secondLow) = splitOctet(command2)
+        (byte1, byte2)
 
-        try
-            match (firstHigh, firstLow, secondHigh, secondLow) with
-                | (0uy ,0uy, 0x0Euy, 0uy) -> op_00E0()
-                | (0uy, 0uy, 0x0Euy, 0x0Euy) -> op_00EE()
-                | (1uy, _, _, _) -> op_1NNN(getNNN(command1, command2))
-                | (2uy, _, _, _) -> op_2NNN(getNNN(command1, command2))
-                | (3uy, x, _, _) -> op_3XNN(x, command2)
-                | (4uy, x, _, _) -> op_4XNN(x, command2)
+    member this.screenWidth = _screenWidth
+    member this.screenHeight = _screenHeight
+    member this.displayMemoryShift = _displaySectionShift
+    member this.codeMemoryShift = int(_codeSectionShift)
+    member this.screnBufferLength = _displayBufferLength
+    member this.screen = System.ReadOnlyMemory(_memory, this.displayMemoryShift, (int)_displayBufferLength).Span
+    member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
+    member this.stack = System.ReadOnlyMemory(_stack).Span //System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
+    member this.programCounter = _programCounter
+    member this.stackPointer = _stackPointer
+
+    member this.do_clearScreen = op_00E0
+    member this.do_return = op_00EE
+    member this.do_jump = op_1NNN
+    member this.do_subroutine = op_2NNN
+
+    member this.getDisplayValue(x,y) = getDisplayUnpackedByte(x,y)
+
+    member this.initialize(code: ReadOnlySpan<byte>) = 
+        loadSprites()
+        loadCode(code)
+
+    member this.setVMMemory(addres: int, value:byte) = 
+        _memory[addres] <- value
+
+    member this.execute(byte1, byte2) = 
+        let (firstHigh, firstLow) = splitOctet(byte1)
+        let (secondHigh, secondLow) = splitOctet(byte2)
+
+        match (firstHigh, firstLow, secondHigh, secondLow) with
+                | (0uy ,0uy, 0x0Euy, 0uy) -> this.do_clearScreen()
+                | (0uy, 0uy, 0x0Euy, 0x0Euy) -> this.do_return()
+                | (1uy, _, _, _) -> this.do_jump(getLow12Bit(byte1, byte2))
+                | (2uy, _, _, _) -> this.do_subroutine(getLow12Bit(byte1, byte2))
+                | (3uy, x, _, _) -> op_3XNN(x, byte2)
+                | (4uy, x, _, _) -> op_4XNN(x, byte2)
                 | (5uy, x, y, 0uy) -> op_5XY0(x, y)
-                | (6uy, x, _, _) -> op_6XNN(x, command2)
-                | (7uy, x, _, _) -> op_7XNN(x, command2)
+                | (6uy, x, _, _) -> op_6XNN(x, byte2)
+                | (7uy, x, _, _) -> op_7XNN(x, byte2)
                 | (8uy, x, y, 0uy) -> op_8XY0(x,y)
                 | (8uy, x, y, 1uy) -> op_8XY1(x,y)
                 | (8uy, x, y, 2uy) -> op_8XY2(x,y)
@@ -310,9 +366,9 @@ type Emulator () =
                 | (8uy, x, _, 6uy) -> op_8XY6(x)
                 | (8uy, x, y, 7uy) -> op_8XY7(x,y)
                 | (8uy, x, _, 0xEuy) -> op_8XYE(x)
-                | (0x0Auy, _, _, _) -> op_ANNN(getNNN(command1, command2))
-                | (0x0Buy, _, _, _) -> op_BNNN(getNNN(command1, command2))
-                | (0x0Cuy, x, _, _) -> op_CXNN(x, command2)
+                | (0x0Auy, _, _, _) -> op_ANNN(getLow12Bit(byte1, byte2))
+                | (0x0Buy, _, _, _) -> op_BNNN(getLow12Bit(byte1, byte2))
+                | (0x0Cuy, x, _, _) -> op_CXNN(x, byte2)
                 | (0x0Duy, x, y, n) -> op_DXYN(x,y,n)
                 | (0x0Euy, x, 9uy, 0x0Euy) -> op_EX9E(x)
                 | (0x0Euy, x, 0x0Auy, 1uy) -> op_EXA1(x)
@@ -321,16 +377,36 @@ type Emulator () =
                 | (0x0Fuy, x, 1uy, 5uy) -> op_FX15(x)
                 | (0x0Fuy, x, 1uy, 8uy) -> op_FX18(x)
                 | (0x0Fuy, x, 1uy, 0x0Euy) -> op_FX1E(x)
-                | (0xFuy, x, 2uy, 9uy) -> op_FX19(x)
+                | (0xFuy, x, 2uy, 9uy) -> op_FX29(x)
                 | (0x0Fuy, x, 3uy, 3uy) -> op_FX33(x)
                 | (0x0Fuy, x, 5uy, 5uy) -> op_FX55(x)
                 | (0x0Fuy, x, 6uy, 5uy) -> op_FX65(x)
                 | (_, _, _, _) -> raise (Exception("Unknown opcode"))
+
+    member this.tick()=
+        let command1 = _memory.[(int)_programCounter]
+        let command2 = _memory.[(int)_programCounter+1]
+
+        try
+            fetch () |> this.execute
         with 
             | ex -> 
                 let message = $"Unable to process with opcode {command1:X2} {command2:X2} at position {_programCounter-2us}"
                 raise (Exception(message, ex))
 
+
+let loadProgramCode(filename:string) = 
+    let buffer = Array.create (4096 - 512) 0uy
+    use reader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read))
+    let mutable index = 0
+
+    while (reader.BaseStream.Position < reader.BaseStream.Length) do
+        let bytes = reader.ReadBytes(2)
+        buffer[index] <- bytes[0]
+        buffer[index+1] <- bytes[1]
+        index <- index + 2
+
+    buffer.AsSpan(0, index - 2)
 
 let createMemoryDump(buffer: ReadOnlySpan<byte>) = 
     use writer = new BinaryWriter(File.Create($"{Random().NextInt64()}.hex"))

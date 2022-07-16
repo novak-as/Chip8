@@ -12,7 +12,7 @@ type Chip8 () as chip =
 
     do
         chip.IsFixedTimeStep <- true
-        chip.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/5.0)
+        chip.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/60.0)
 
     override x.Initialize() =
     
@@ -22,8 +22,9 @@ type Chip8 () as chip =
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "PUZZLE"
-        emulator.load($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
+        let romName = "CONNECT4"
+        let code = Chip8Emulator.loadProgramCode($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
+        emulator.initialize(code)
 
         ()
 
