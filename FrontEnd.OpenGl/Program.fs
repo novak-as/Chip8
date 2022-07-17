@@ -16,8 +16,9 @@ type Chip8 () as chip =
 
     override x.Initialize() =
     
-        graphics.PreferredBackBufferWidth <- 960
-        graphics.PreferredBackBufferHeight <- 480
+        graphics.PreferredBackBufferWidth <- emulator.displayWidth
+        graphics.PreferredBackBufferHeight <- emulator.displayHeight
+        graphics.IsFullScreen <- true
 
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
@@ -44,8 +45,8 @@ type Chip8 () as chip =
     override this.Draw (gameTime) =
 
         //TODO: this should be done only once
-        let blockWidth = graphics.PreferredBackBufferWidth / (int)emulator.screenWidth
-        let blockHeight = graphics.PreferredBackBufferHeight / (int)emulator.screenHeight
+        let blockWidth = graphics.GraphicsDevice.Viewport.Width / emulator.displayWidth
+        let blockHeight = graphics.GraphicsDevice.Viewport.Height / emulator.displayHeight
 
         let texture = Texture2D(chip.GraphicsDevice, 1,1)
         texture.SetData([| Color.White |])
@@ -53,8 +54,8 @@ type Chip8 () as chip =
         spriteBatch.Begin()
         let screen = emulator.display
 
-        for x in 0 .. (int)emulator.screenWidth - 1 do
-            for y in 0 .. (int)emulator.screenHeight - 1 do
+        for x in 0 .. int(emulator.displayWidth) - 1 do
+            for y in 0 .. int(emulator.displayHeight) - 1 do
                 
                 let isSet = emulator.getDisplayValue(x,y)
 

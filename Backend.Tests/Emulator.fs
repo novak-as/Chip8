@@ -402,25 +402,24 @@ type EmulatorTests ()=
 
         Assert.That(emulator.variables[0]>=min && emulator.variables[0]<=max)
 
-    [<TestCase(0uy,0uy)>]
-    member this.opDXYN_correct(x, y) = 
-        let emulator = Emulator()
+    //[<TestCase(0uy,0uy)>]
+    //[<TestCase(1uy,0uy)>]
+    //member this.opDXYN_correct(x, y) = 
+    //    let emulator = Emulator()
 
-        let byte1 = 0xD0uy + x
-        let byte2 = 0x05uy + y
+    //    let code = [| 0xD0uy; 0x05uy|].AsSpan()
 
-        let code = [| 0xF0uy; 0x29uy; byte1; byte2 |].AsSpan()
+    //    emulator.initialize(code)
+    //    emulator.setVMI(0us)
+    //    emulator.setVMVariable(0, x)
+    //    emulator.setVMVariable(1, y)
+    //    emulator.tick()
 
-        emulator.initialize(code)
-        emulator.setVMVariable(0, 0uy)
-        emulator.tick()
-        emulator.tick()
-
-        Assert.AreEqual(0xF0uy, emulator.memory[emulator.displayMemoryShift])
-        Assert.AreEqual(0x90uy, emulator.memory[emulator.displayMemoryShift + 8])
-        Assert.AreEqual(0x90uy, emulator.memory[emulator.displayMemoryShift + 16])
-        Assert.AreEqual(0x90uy, emulator.memory[emulator.displayMemoryShift + 24])
-        Assert.AreEqual(0xF0uy, emulator.memory[emulator.displayMemoryShift + 32])
+    //    Assert.AreEqual(0xF0uy, emulator.display[0])
+    //    Assert.AreEqual(0x90uy, emulator.display[8])
+    //    Assert.AreEqual(0x90uy, emulator.display[16])
+    //    Assert.AreEqual(0x90uy, emulator.display[24])
+    //    Assert.AreEqual(0xF0uy, emulator.display[32])
         
     [<Test>]
     member this.opFX29_correct() = 
@@ -433,3 +432,38 @@ type EmulatorTests ()=
         emulator.tick()
 
         Assert.AreEqual(25us, emulator.i)
+
+    [<Test>]
+    member this.opFX55_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xFFuy; 0x55uy |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.setVMI(1us)
+        for i in 0 .. 15 do
+            emulator.setVMVariable(i,10uy)
+
+        emulator.tick()
+
+        for i in 0 .. 15 do
+            Assert.AreEqual(10us, emulator.memory[1+i])
+        Assert.AreEqual(1, emulator.i)
+
+    [<Test>]
+    member this.opFX65_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xFFuy; 0x65uy |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.setVMI(1us)
+        for i in 0 .. 15 do
+            emulator.setVMMemory(1+i,10uy)
+
+        emulator.tick()
+
+        for i in 0 .. 15 do
+            Assert.AreEqual(10us, emulator.variables[i])
+
+        Assert.AreEqual(1, emulator.i)

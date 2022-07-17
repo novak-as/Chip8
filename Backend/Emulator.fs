@@ -37,14 +37,14 @@ let splitOctet(octet:byte): byte*byte =
 
 type Stack (memory: byte[], shift, length) =
 
-    let mutable _pointer = 0uy
+    let mutable _pointer = 0
 
     member this.pointer = _pointer
     member this.memory = memory.AsSpan(shift, length)
 
     member this.push(value: uint16) = 
 
-        let slice = this.memory.Slice(int(_pointer<<<1), 2)
+        let slice = this.memory.Slice(_pointer<<<1, 2)
 
         let bytes = value |> BitConverter.GetBytes
         let bytes2 = BitConverter.GetBytes(value)
@@ -52,10 +52,10 @@ type Stack (memory: byte[], shift, length) =
         let reversed = value |> BitConverter.GetBytes |> reverseBytes
         reversed.CopyTo(slice)
 
-        _pointer <- _pointer + 1uy
+        _pointer <- _pointer + 1
 
     member this.pop() =
-        _pointer <- _pointer - 1uy
+        _pointer <- _pointer - 1
         let slice = this.memory.Slice(int(_pointer<<<1), 2)
 
         slice.ToArray() |> reverseBytes |> BitConverter.ToUInt16
@@ -79,7 +79,8 @@ type Display (width, height, memory: byte[], shift) =
 
     member this.setDisplayPackedByte2D(x:int, y:int, value:byte) = 
         let address = y * width/8 + x
-        this.memory[address] <- value
+        printfn $"update packed {x},{y}: m[{address}] = {value}"
+        this.memory[address] <- value        
 
 
 type Emulator ()=
@@ -90,11 +91,11 @@ type Emulator ()=
     static let _stackBufferLength = 96
 
     static let _totalMemory = 4096
-    static let _codeSectionShift = 0x200us
+    static let _codeSectionShift = 0x200
     static let _displaySectionShift = _totalMemory - _displayBufferLength
     static let _stackSectionShift = 0x0EA0
     
-    let mutable _programCounter:uint16 = _codeSectionShift
+    let mutable _programCounter:uint16 = uint16(_codeSectionShift)
     let _memory: byte[] = Array.create _totalMemory 0uy    
     let _rnd = Random()
     let mutable _i:uint16 = 0us
@@ -138,75 +139,75 @@ type Emulator ()=
     let op_00E0 () = 
         for i in 0 .. (int)_displayBufferLength - 1 do
             _display.memory[i] <- 0uy
-        printfn("Clean screen")
+        printfn("OK: Clean screen")
 
     let op_00EE () = 
         _programCounter <- _stack.pop()
-        printfn $"return from subroutine to {_programCounter}"
+        printfn $"OK: return from subroutine to {_programCounter}"
 
     let op_1NNN (nnn:uint12) = 
-        _programCounter <- nnn 
-        printfn $"jump to {_programCounter}"
+        _programCounter <- nnn
+        printfn $"OK: jump to {_programCounter}"
 
     let op_2NNN (nnn: uint12) = 
-        _stack.push(_programCounter)
+        _stack.push(uint16(_programCounter))
         _programCounter <- nnn
-        printfn($"Call subroutine at {_programCounter}")
+        printfn($"OK: Call subroutine at {_programCounter}")
 
     let op_3XNN (x:nible, nn:byte) = 
         if _variables[(int)x] = nn then
             _programCounter <- _programCounter + 2us
-        printfn $"Skip if v[{x}] == {nn}: {_variables[(int)x] = nn}"
+        printfn $"OK: Skip if v[{x}] == {nn}: {_variables[(int)x] = nn}"
 
     let op_4XNN (x:nible, nn:byte) = 
         if _variables[(int)x] <> nn then
             _programCounter <- _programCounter + 2us
-        printfn $"Skip if v[{x}] != {nn}: {_variables[(int)x] <> nn}"
+        printfn $"OK: Skip if v[{x}] != {nn}: {_variables[(int)x] <> nn}"
 
     let op_5XY0 (x:nible, y:nible) = 
         if _variables[(int)x] = _variables[(int)y] then
             _programCounter <- _programCounter + 2us
-        printfn $"Skip if v[{x}] == v[{y}]: {_variables[(int)x] = _variables[(int)y]}"
+        printfn $"OK: Skip if v[{x}] == v[{y}]: {_variables[(int)x] = _variables[(int)y]}"
 
     let op_6XNN (x:nible, nn:byte)=
         _variables[(int)x] <- nn
-        printfn $"set v[{x}] <- {nn}"
+        printfn $"OK: set v[{x}] <- {nn}"
 
     let op_7XNN (x:nible, nn:byte)=
         _variables[(int)x] <- _variables[(int)x] + nn
-        printfn $"v[{x}] += {nn}: {_variables[(int)x]}"
+        printfn $"OK: v[{x}] += {nn}: {_variables[(int)x]}"
 
     let op_8XY0 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)y]
-        printfn $"v[{x}] = v[{y}]: {_variables[(int)y]}"
+        printfn $"OK: v[{x}] = v[{y}]: {_variables[(int)y]}"
 
     let op_8XY1 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] ||| _variables[(int)y]
-        printfn $"v[{x}] |= v[{y}]: {_variables[(int)x]}"
+        printfn $"OK: v[{x}] |= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY2 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] &&& _variables[(int)y]
-        printfn $"v[{x}] &= v[{y}]: {_variables[(int)x]}"
+        printfn $"OK: v[{x}] &= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY3 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] ^^^ _variables[(int)y]
-        printfn $"v[{x}] ^= v[{y}]: {_variables[(int)x]}"
+        printfn $"OK: v[{x}] ^= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY4 (x:nible, y:nible) = 
         _variables[15] <- if uint16(_variables[int(x)]) + uint16(_variables[(int)y]) > uint16(Byte.MaxValue) then 1uy else 0uy
         _variables[(int)x] <- _variables[(int)x] + _variables[(int)y]
-        printfn $"v[{x}] += v[{y}]: {_variables[(int)x]}"
+        printfn $"OK: v[{x}] += v[{y}]: {_variables[(int)x]}"
 
     let op_8XY5 (x:nible, y:nible) = 
         _variables[15] <-  if _variables[(int)y] > _variables[(int)x] then 0uy else 1uy
         _variables[(int)x] <- _variables[(int)x] - _variables[(int)y]
-        printfn $"v[{x}] -= v[{y}]: {_variables[(int)x]}, v[0xFF]: {_variables[15]}"
+        printfn $"OK: v[{x}] -= v[{y}]: {_variables[(int)x]}, v[0xFF]: {_variables[15]}"
 
     let op_8XY6 (x:nible) =    
         _variables[15] <- _variables[(int)x] &&& 1uy
         _variables[(int)x] <- _variables[(int)x] >>> 1
 
-        printfn $""
+        printfn $"OK: "
 
     let op_8XY7 (x:nible, y:nible) = 
         if _variables[(int)x] > _variables[(int)y] then
@@ -215,29 +216,29 @@ type Emulator ()=
             _variables[15] <- 1uy
         _variables[(int)x] <- _variables[(int)y] - _variables[(int)x]
 
-        printfn $""
+        printfn $"OK: "
 
     let op_8XYE (x:nible) = 
         _variables[15] <- (_variables[(int)x] &&& 0x80uy) >>> 7
         _variables[(int)x] <- _variables[(int)x] <<< 1
 
-        printfn $""
+        printfn $"OK: "
 
     let op_9XY0 (x:nible, y:nible) = 
         if _variables[int(x)] <> _variables[int(y)] then
             _programCounter <- _programCounter + 2us
-        printfn $"Skip if v[{x}] != v[{y}]: {_variables[int(x)] <> _variables[int(y)]}"
+        printfn $"OK: Skip if v[{x}] != v[{y}]: {_variables[int(x)] <> _variables[int(y)]}"
 
 
     let op_ANNN (nnn:uint12) = 
         _i <- nnn
 
-        printfn $"I = {nnn}"
+        printfn $"OK: I = {nnn}"
 
     let op_BNNN (nnn:uint12) = 
         _programCounter <- uint16(_variables[0]) + nnn
 
-        printfn $""
+        printfn $"OK: "
 
     let op_CXNN (x:nible, nn:byte)=
         let random = (byte)(_rnd.Next(0,256))
@@ -249,21 +250,43 @@ type Emulator ()=
 
         let mutable collisionDetected = false
 
-        let coordinateX = _variables[(int)x]
-        let coordinateY = _variables[(int)y]
+        let coordinateX = _variables[int(x)]
+        let coordinateY = _variables[int(y)]
 
-        for i in 0us .. (uint16)n - 1us do           
-            let sprite = _memory[(int)(_i+(uint16)i)]
-            let displayed = _display.memory[int(i)]
-            let xored = displayed ^^^ sprite
+        if coordinateX >= byte(_display.width) then
+            raise (Exception($"Invalid draw call, X coordinate {coordinateX} is out of border"))
 
-            _display.setDisplayPackedByte2D((int)coordinateX, (int)coordinateY + (int)i, xored)
-            collisionDetected <- collisionDetected || (xored <> displayed)
+        if coordinateY >= byte(_display.height) then
+            raise (Exception($"Invalid draw call, Y coordinate {coordinateY} is out of border"))
+
+        if coordinateX = 50uy then
+            printfn "boom"
+
+        for i in 0us .. (uint16)n - 1us do
+
+            let addr = int(coordinateX) / 8 + (int(coordinateY) + int(i)) * _display.width/8
+
+            let sprite = _memory[int(_i)+int(i)]
+            let shift = int(coordinateX) % 8
+
+            let firstPacked = _display.memory[addr]
+            let firstSprite = sprite >>> shift
+
+            let secondPacked = _display.memory[addr+1]
+            let secondSprite = sprite <<< (8 - shift)
+
+            _display.memory[addr] <- firstPacked ^^^ firstSprite
+            _display.memory[addr + 1] <- secondPacked ^^^ secondSprite
+
+            let xored = firstPacked ^^^ sprite
+
+            //_display.setDisplayPackedByte2D(int(coordinateX), int(coordinateY) + int(i), xored)
+            collisionDetected <- collisionDetected || (xored <> firstPacked)
 
         if collisionDetected then
             _variables[15] <- 1uy
 
-        printfn $"draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
+        printfn $"OK: draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
     
     let op_EX9E (x:nible) =
         let key = _inputs[(int)x]
@@ -282,7 +305,7 @@ type Emulator ()=
     let op_FX07 (x:nible) = 
         _variables[(int)x] <- _delayTimer
 
-        printfn $""
+        printfn $"OK: "
 
     let op_FX0A (x:nible) = 
         //_variables[(int)x] <- (byte)(Console.ReadKey().Key)
@@ -320,18 +343,17 @@ type Emulator ()=
 
     let op_FX55 (x:nible) =
         for i in 0uy .. x do
-            _memory[(int)(_i+(uint16)i)] <- _variables[(int)i]
-
-        printfn $""
+            _memory[int(_i)+int(i)] <- _variables[(int)i]
+            printfn $"OK: m[{int(_i)+int(i)}] =  v[{i}]: {_memory[int(_i) + int(i)]}"
 
     let op_FX65 (x:nible) =
         for i in 0uy .. x do
-            _variables[(int)i] <- _memory[(int)(_i+(uint16)i)]
-            printfn $"v[{i}] = m[{_i+(uint16)i}]: {_memory[(int)(_i+(uint16)i)]}"
+            _variables[int(i)] <- _memory[int(_i)+int(i)]
+            printfn $"OK: v[{i}] = m[{int(_i)+int(i)}]: {_memory[int(_i)+int(i)]}"
 
     let fetch(): byte*byte = 
-        let byte1 = _memory.[(int)_programCounter]
-        let byte2 = _memory.[(int)_programCounter+1]
+        let byte1 = _memory.[int(_programCounter)]
+        let byte2 = _memory.[int(_programCounter)+1]
 
         printf $"{_programCounter}: [0x{byte1:X2} 0x{byte2:X2}] | "
 
@@ -339,8 +361,8 @@ type Emulator ()=
 
         (byte1, byte2)
 
-    member this.screenWidth = _screenWidth
-    member this.screenHeight = _screenHeight
+    member this.displayWidth = _screenWidth
+    member this.displayHeight = _screenHeight
     member this.displayMemoryShift = _displaySectionShift
     member this.codeMemoryShift = int(_codeSectionShift)
     member this.screnBufferLength = _displayBufferLength
@@ -363,6 +385,9 @@ type Emulator ()=
 
     member this.setVMVariable(number: int, value: byte) = 
         _variables[number] <- value
+
+    member this.setVMI(position) = 
+        _i <- position
 
     member this.execute(byte1, byte2) = 
         let (firstHigh, firstLow) = splitOctet(byte1)
