@@ -31,6 +31,31 @@ type ToolsTests () =
         Assert.AreEqual(0x0Buy, nible2)
 
 [<TestFixture>]
+type StackTests () = 
+    [<Test>]
+    member this.push_correct() = 
+        let buffer = Array.create 10 0uy
+        let stack = Stack(buffer,5,5)
+
+        stack.push(0x0F0Aus)
+        
+        Assert.AreEqual(1, stack.pointer)
+        Assert.AreEqual(0x0Fuy, buffer[5])
+        Assert.AreEqual(0x0Auy, buffer[6])
+
+    [<Test>]
+    member this.pop_correct() = 
+        let buffer = Array.create 10 0uy
+        let stack = Stack(buffer,5,5)
+
+        stack.push(0x0F0Aus)
+
+        let value = stack.pop()
+        
+        Assert.AreEqual(0, stack.pointer)
+        Assert.AreEqual(0x0F0Aus, value)
+
+[<TestFixture>]
 type EmulatorTests ()=
     [<Test>]
     member this.initialize_correct() = 
@@ -55,8 +80,8 @@ type EmulatorTests ()=
         let emulator = Emulator()
 
         emulator.setVMMemory(emulator.displayMemoryShift, 0xFFuy)
-
-        emulator.do_clearScreen()
+        emulator.initialize([| 0x00uy; 0xE0uy |].AsSpan())
+        emulator.tick()
 
         Assert.AreEqual(0x00uy, emulator.memory[emulator.displayMemoryShift])
 
@@ -64,27 +89,13 @@ type EmulatorTests ()=
     member this.jump_correct() = 
         let emulator = Emulator()
 
-        emulator.do_jump(0x0666us)
-
-        Assert.AreEqual(0x0666us, emulator.programCounter)
-
-    [<Test>]
-    member this.subroutine_correct() = 
-        let emulator = Emulator()
-
-        let code = [| 0x26uy; 0x66uy |].AsSpan()
-
-        emulator.initialize(code)
-
-        let pc = emulator.programCounter
+        emulator.initialize([| 0x16uy; 0x66uy |].AsSpan())
         emulator.tick()
 
         Assert.AreEqual(0x0666us, emulator.programCounter)
-        Assert.AreEqual(1,emulator.stackPointer)
-        Assert.AreEqual(pc+2us, emulator.stack[0])
 
     [<Test>]
-    member this.return_correct() = 
+    member this.suroutineReturn_correct() = 
         let emulator = Emulator()
 
         let code = [| 0x26uy; 0x66uy; |].AsSpan()
@@ -100,3 +111,17 @@ type EmulatorTests ()=
         emulator.tick()
 
         Assert.AreEqual(pc+2us, emulator.programCounter)
+
+    [<Test>]
+    member this.subroutineExecute_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0x26uy; 0x66uy |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.tick()
+
+        Assert.AreEqual(0x0666us, emulator.programCounter)
+        Assert.AreEqual(1,emulator.stackPointer)
+        Assert.AreEqual(0x02uy, emulator.stack[0])
+        Assert.AreEqual(0x02uy, emulator.stack[1])

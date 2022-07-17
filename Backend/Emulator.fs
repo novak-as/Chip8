@@ -5,8 +5,12 @@ open System.IO
 
 type nible = byte
 type uint12 = uint16 
-type chip8Command = byte*byte
 
+let reverseBytes(bytes: byte[]) = 
+    [| bytes[1]; bytes[0] |]
+
+let getBytesBE(value:uint16):byte[] = 
+    [| byte(value >>> 8); byte(value &&& 0x00FFus); |]
 
 let getLow4Bit(octet:byte):nible = 
     byte(octet &&& (byte)0x0F)
@@ -14,19 +18,15 @@ let getLow4Bit(octet:byte):nible =
 let getHight4Bit(octet:byte):nible = 
     byte(octet >>> 4)
 
-let getHigh8Bit(word: uint16) = 
-    match BitConverter.IsLittleEndian with
-        | true -> word >>> 8
-        | false -> word &&& 0x00FFus
+let getHigh8Bit(word: uint16):byte = 
+    byte(word >>> 8)
 
-let getLow8Bit(word: uint16) = 
-    match BitConverter.IsLittleEndian with
-        | true -> word &&& 0x00FFus
-        | false -> word >>> 8
+let getLow8Bit(word: uint16): byte = 
+    byte(word &&& 0x00FFus)
                 
 let getLow12Bit(byte1:byte, byte2:byte): uint12 =
     let low0 = getLow4Bit(byte1)
-    let result = if BitConverter.IsLittleEndian then BitConverter.ToUInt16([| byte2; low0 |], 0) else BitConverter.ToUInt16([| low0; byte2; |], 0)
+    let result = BitConverter.ToUInt16([| byte2; low0 |], 0)
     result
 
 let splitOctet(octet:byte): byte*byte =
@@ -34,6 +34,31 @@ let splitOctet(octet:byte): byte*byte =
     let n2 = getLow4Bit(octet)
     (n1, n2)
 
+
+type Stack (memory: byte[], shift, length) =
+
+    let mutable _pointer = 0uy
+
+    member this.pointer = _pointer
+    member this.memory = memory.AsSpan(shift, length)
+
+    member this.push(value: uint16) = 
+
+        let slice = this.memory.Slice(int(_pointer<<<1), 2)
+
+        let bytes = value |> BitConverter.GetBytes
+        let bytes2 = BitConverter.GetBytes(value)
+
+        let reversed = value |> BitConverter.GetBytes |> reverseBytes
+        reversed.CopyTo(slice)
+
+        _pointer <- _pointer + 1uy
+
+    member this.pop() =
+        _pointer <- _pointer - 1uy
+        let slice = this.memory.Slice(int(_pointer<<<1), 2)
+
+        slice.ToArray() |> reverseBytes |> BitConverter.ToUInt16
 
 type Emulator ()=
 
@@ -46,17 +71,18 @@ type Emulator ()=
     static let _codeSectionShift = 0x200us
     static let _displaySectionShift = _totalMemory - _displayBufferLength
     static let _stackSectionShift = 0x0EA0
-
+    
     let mutable _programCounter:uint16 = _codeSectionShift
-    let _memory: byte[] = Array.create _totalMemory 0uy
+    let _memory: byte[] = Array.create _totalMemory 0uy    
     let _rnd = Random()
     let mutable _i:uint16 = 0us
     let _variables: byte[] = Array.create 16 0uy
     let _inputs:bool[] = Array.create 16 false
-    let _stack: uint16[] = Array.create _stackBufferLength 0us //_memory.AsSpan(_stackSectionShift, _stackBufferLength)
+
+    let _stack = Stack(_memory, _stackSectionShift, _stackBufferLength)
+
     let mutable _delayTimer:byte = 0uy
     let mutable _soundTimer:byte = 0uy
-    let mutable _stackPointer:byte = 0uy
 
     //technically, this is a display driver
     let getDisplayUnpackedByte(x:int, y:int) = 
@@ -119,9 +145,7 @@ type Emulator ()=
         printfn("Clean screen")
 
     let op_00EE () = 
-        _stackPointer <- _stackPointer - 1uy
-        let addr = _stack[(int)_stackPointer]
-        _programCounter <- addr
+        _programCounter <- _stack.pop()
         printfn $"return from subroutine to {_programCounter}"
 
     let op_1NNN (nnn:uint12) = 
@@ -129,8 +153,7 @@ type Emulator ()=
         printfn $"jump to {_programCounter}"
 
     let op_2NNN (nnn: uint12) = 
-        _stack[(int)_stackPointer] <- _programCounter
-        _stackPointer <- _stackPointer + 1uy
+        _stack.push(_programCounter)
         _programCounter <- nnn
         printfn($"Call subroutine at {_programCounter}")
 
@@ -325,14 +348,9 @@ type Emulator ()=
     member this.screnBufferLength = _displayBufferLength
     member this.screen = System.ReadOnlyMemory(_memory, this.displayMemoryShift, (int)_displayBufferLength).Span
     member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
-    member this.stack = System.ReadOnlyMemory(_stack).Span //System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
+    member this.stack = System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span //System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
     member this.programCounter = _programCounter
-    member this.stackPointer = _stackPointer
-
-    member this.do_clearScreen = op_00E0
-    member this.do_return = op_00EE
-    member this.do_jump = op_1NNN
-    member this.do_subroutine = op_2NNN
+    member this.stackPointer = _stack.pointer
 
     member this.getDisplayValue(x,y) = getDisplayUnpackedByte(x,y)
 
@@ -348,10 +366,10 @@ type Emulator ()=
         let (secondHigh, secondLow) = splitOctet(byte2)
 
         match (firstHigh, firstLow, secondHigh, secondLow) with
-                | (0uy ,0uy, 0x0Euy, 0uy) -> this.do_clearScreen()
-                | (0uy, 0uy, 0x0Euy, 0x0Euy) -> this.do_return()
-                | (1uy, _, _, _) -> this.do_jump(getLow12Bit(byte1, byte2))
-                | (2uy, _, _, _) -> this.do_subroutine(getLow12Bit(byte1, byte2))
+                | (0uy ,0uy, 0x0Euy, 0uy) -> op_00E0()
+                | (0uy, 0uy, 0x0Euy, 0x0Euy) -> op_00EE()
+                | (1uy, _, _, _) -> op_1NNN(getLow12Bit(byte1, byte2))
+                | (2uy, _, _, _) -> op_2NNN(getLow12Bit(byte1, byte2))
                 | (3uy, x, _, _) -> op_3XNN(x, byte2)
                 | (4uy, x, _, _) -> op_4XNN(x, byte2)
                 | (5uy, x, y, 0uy) -> op_5XY0(x, y)
