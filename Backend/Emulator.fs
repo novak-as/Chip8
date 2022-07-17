@@ -197,16 +197,13 @@ type Emulator ()=
         printfn $"v[{x}] ^= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY4 (x:nible, y:nible) = 
+        _variables[15] <- if uint16(_variables[int(x)]) + uint16(_variables[(int)y]) > uint16(Byte.MaxValue) then 1uy else 0uy
         _variables[(int)x] <- _variables[(int)x] + _variables[(int)y]
         printfn $"v[{x}] += v[{y}]: {_variables[(int)x]}"
 
     let op_8XY5 (x:nible, y:nible) = 
-        if _variables[(int)y] > _variables[(int)x] then 
-            _variables[15] <- 0uy
-        else
-            _variables[15] <- 1uy
+        _variables[15] <-  if _variables[(int)y] > _variables[(int)x] then 0uy else 1uy
         _variables[(int)x] <- _variables[(int)x] - _variables[(int)y]
-
         printfn $"v[{x}] -= v[{y}]: {_variables[(int)x]}, v[0xFF]: {_variables[15]}"
 
     let op_8XY6 (x:nible) =    
@@ -229,6 +226,11 @@ type Emulator ()=
         _variables[(int)x] <- _variables[(int)x] <<< 1
 
         printfn $""
+
+    let op_9XY0 (x:nible, y:nible) = 
+        if _variables[int(x)] <> _variables[int(y)] then
+            _programCounter <- _programCounter + 2us
+        printfn $"Skip if v[{x}] != v[{y}]: {_variables[int(x)] <> _variables[int(y)]}"
 
 
     let op_ANNN (nnn:uint12) = 
@@ -346,9 +348,10 @@ type Emulator ()=
     member this.displayMemoryShift = _displaySectionShift
     member this.codeMemoryShift = int(_codeSectionShift)
     member this.screnBufferLength = _displayBufferLength
+    member this.variables = System.ReadOnlyMemory(_variables,0,_variables.Length).Span
     member this.screen = System.ReadOnlyMemory(_memory, this.displayMemoryShift, (int)_displayBufferLength).Span
     member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
-    member this.stack = System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span //System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
+    member this.stack = System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
     member this.programCounter = _programCounter
     member this.stackPointer = _stack.pointer
 
@@ -360,6 +363,9 @@ type Emulator ()=
 
     member this.setVMMemory(addres: int, value:byte) = 
         _memory[addres] <- value
+
+    member this.setVMVariable(number: int, value: byte) = 
+        _variables[number] <- value
 
     member this.execute(byte1, byte2) = 
         let (firstHigh, firstLow) = splitOctet(byte1)
@@ -384,6 +390,7 @@ type Emulator ()=
                 | (8uy, x, _, 6uy) -> op_8XY6(x)
                 | (8uy, x, y, 7uy) -> op_8XY7(x,y)
                 | (8uy, x, _, 0xEuy) -> op_8XYE(x)
+                | (9uy, x, y, 0uy) -> op_9XY0(x,y)
                 | (0x0Auy, _, _, _) -> op_ANNN(getLow12Bit(byte1, byte2))
                 | (0x0Buy, _, _, _) -> op_BNNN(getLow12Bit(byte1, byte2))
                 | (0x0Cuy, x, _, _) -> op_CXNN(x, byte2)
