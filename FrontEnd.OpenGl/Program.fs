@@ -51,7 +51,7 @@ type Chip8 () as chip =
         texture.SetData([| Color.White |])
 
         spriteBatch.Begin()
-        let screen = emulator.screen
+        let screen = emulator.display
 
         for x in 0 .. (int)emulator.screenWidth - 1 do
             for y in 0 .. (int)emulator.screenHeight - 1 do

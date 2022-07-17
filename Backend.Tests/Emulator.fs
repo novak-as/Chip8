@@ -55,6 +55,40 @@ type StackTests () =
         Assert.AreEqual(0, stack.pointer)
         Assert.AreEqual(0x0F0Aus, value)
 
+type DisplayTests () = 
+
+    [<TestCase(0,0)>]
+    [<TestCase(7,0)>]
+    [<TestCase(0,31)>]
+    [<TestCase(7,31)>]
+    member this.setDisplayPackedByte2D_correct(x,y) = 
+        let buffer = Array.create 256 0uy
+        let display = Display(64, 32, buffer, 0)
+
+        display.setDisplayPackedByte2D(x,y, 0xAAuy)
+
+        let addr = x + display.width/8 * y
+        Assert.AreEqual(0xAAuy, display.memory[addr])
+
+    [<TestCase(0,0)>]
+    [<TestCase(7,0)>]
+    [<TestCase(0,31)>]
+    [<TestCase(7,31)>]
+    member this.getDisplayUnpackedByte_correct(x,y) = 
+        let buffer = Array.create 256 0uy
+        let display = Display(64, 32, buffer, 0)
+
+        display.memory[x + display.width/8*y] <- 0xA9uy
+
+        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8,y))
+        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+1,y))
+        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8+2,y))
+        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+3,y))
+        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8+4,y))
+        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+5,y))
+        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+6,y))
+        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8+7,y))
+
 [<TestFixture>]
 type EmulatorTests ()=
     [<Test>]
@@ -83,7 +117,7 @@ type EmulatorTests ()=
         emulator.initialize([| 0x00uy; 0xE0uy |].AsSpan())
         emulator.tick()
 
-        Assert.AreEqual(0x00uy, emulator.memory[emulator.displayMemoryShift])
+        Assert.AreEqual(0x00uy, emulator.display[0])
 
     [<Test>]
     member this.op1NNN_correct() = 
@@ -331,3 +365,71 @@ type EmulatorTests ()=
         emulator.tick()
 
         Assert.AreEqual(pc+shift, emulator.programCounter)
+
+    [<Test>]
+    member this.opANNN_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xAFuy; 0xFFuy; |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.tick()
+
+        Assert.AreEqual(0x0FFFus, emulator.i)
+
+    [<Test>]
+    member this.opBNNN_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xB1uy; 0x24uy; |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.setVMVariable(0, 2uy)
+        emulator.tick()
+
+        Assert.AreEqual(294, emulator.programCounter)
+
+    [<TestCase(0uy, 1uy)>]
+    [<TestCase(0uy, 255uy)>]
+    [<Repeat(10)>]
+    member this.opCXNN_correct(min, max) = 
+        let emulator = Emulator()
+
+        let code = [| 0xC0uy; max; |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.tick()
+
+        Assert.That(emulator.variables[0]>=min && emulator.variables[0]<=max)
+
+    [<TestCase(0uy,0uy)>]
+    member this.opDXYN_correct(x, y) = 
+        let emulator = Emulator()
+
+        let byte1 = 0xD0uy + x
+        let byte2 = 0x05uy + y
+
+        let code = [| 0xF0uy; 0x29uy; byte1; byte2 |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.setVMVariable(0, 0uy)
+        emulator.tick()
+        emulator.tick()
+
+        Assert.AreEqual(0xF0uy, emulator.memory[emulator.displayMemoryShift])
+        Assert.AreEqual(0x90uy, emulator.memory[emulator.displayMemoryShift + 8])
+        Assert.AreEqual(0x90uy, emulator.memory[emulator.displayMemoryShift + 16])
+        Assert.AreEqual(0x90uy, emulator.memory[emulator.displayMemoryShift + 24])
+        Assert.AreEqual(0xF0uy, emulator.memory[emulator.displayMemoryShift + 32])
+        
+    [<Test>]
+    member this.opFX29_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xF0uy; 0x29uy |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.setVMVariable(0, 5uy)
+        emulator.tick()
+
+        Assert.AreEqual(25us, emulator.i)

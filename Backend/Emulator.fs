@@ -60,6 +60,28 @@ type Stack (memory: byte[], shift, length) =
 
         slice.ToArray() |> reverseBytes |> BitConverter.ToUInt16
 
+
+type Display (width, height, memory: byte[], shift) = 
+
+    member this.width = width
+    member this.height = height
+    member this.memory = memory.AsSpan(shift, width / 8 * height)
+
+    member this.getDisplayUnpackedByte(x:int, y:int) = 
+        let packedX = x / 8
+        let packedBit = 7 - x % 8
+
+        let spritePosition = packedX + y*width / 8
+
+        let sprite = this.memory[spritePosition]
+        let value = sprite >>> packedBit
+        (value &&& 1uy) = 1uy
+
+    member this.setDisplayPackedByte2D(x:int, y:int, value:byte) = 
+        let address = y * width/8 + x
+        this.memory[address] <- value
+
+
 type Emulator ()=
 
     static let _screenWidth = 64
@@ -79,38 +101,12 @@ type Emulator ()=
     let _variables: byte[] = Array.create 16 0uy
     let _inputs:bool[] = Array.create 16 false
 
+    let _display = Display(_screenWidth, _screenHeight, _memory, _displaySectionShift)
     let _stack = Stack(_memory, _stackSectionShift, _stackBufferLength)
 
     let mutable _delayTimer:byte = 0uy
     let mutable _soundTimer:byte = 0uy
 
-    //technically, this is a display driver
-    let getDisplayUnpackedByte(x:int, y:int) = 
-        let displayBufferPosition = _memory.Length - (int)_displayBufferLength
-
-        let packedX = x / 8
-        let packedBit = 7 - x % 8
-
-        let spritePosition = displayBufferPosition + packedX + (int)y*(int)_screenWidth / 8
-
-        let sprite = _memory[spritePosition]
-        let value = sprite >>> packedBit
-        (value &&& 1uy) = 1uy
-
-    let getDisplayPackedByte(i:int) = 
-        let displayBufferPosition = _memory.Length - (int)_displayBufferLength
-        _memory[displayBufferPosition + i]
-
-    let setDisplayPackedByte2D(x:int, y:int, value:byte) = 
-        let address = y * (int)_screenWidth/8 + x
-
-        printfn $"set packed byte at {_memory.Length - (int)_displayBufferLength + address} to {value}"
-
-        if address < _displayBufferLength then           
-            _memory[_memory.Length - (int)_displayBufferLength + address] <- value
-
-    let setDisplayPackedByte(i:int, value: byte) = 
-        _memory[_memory.Length - (int)_displayBufferLength + i] <- value
 
     let loadCode(code: ReadOnlySpan<byte>) = 
         let targetSpan = _memory.AsSpan(int(_programCounter))
@@ -141,7 +137,7 @@ type Emulator ()=
    
     let op_00E0 () = 
         for i in 0 .. (int)_displayBufferLength - 1 do
-            setDisplayPackedByte(i, 0uy)
+            _display.memory[i] <- 0uy
         printfn("Clean screen")
 
     let op_00EE () = 
@@ -239,7 +235,7 @@ type Emulator ()=
         printfn $"I = {nnn}"
 
     let op_BNNN (nnn:uint12) = 
-        _programCounter <- (uint16)(_variables[0]) + nnn
+        _programCounter <- uint16(_variables[0]) + nnn
 
         printfn $""
 
@@ -258,10 +254,10 @@ type Emulator ()=
 
         for i in 0us .. (uint16)n - 1us do           
             let sprite = _memory[(int)(_i+(uint16)i)]
-            let displayed = getDisplayPackedByte((int)i)
+            let displayed = _display.memory[int(i)]
             let xored = displayed ^^^ sprite
 
-            setDisplayPackedByte2D((int)coordinateX, (int)coordinateY + (int)i, xored)
+            _display.setDisplayPackedByte2D((int)coordinateX, (int)coordinateY + (int)i, xored)
             collisionDetected <- collisionDetected || (xored <> displayed)
 
         if collisionDetected then
@@ -349,13 +345,14 @@ type Emulator ()=
     member this.codeMemoryShift = int(_codeSectionShift)
     member this.screnBufferLength = _displayBufferLength
     member this.variables = System.ReadOnlyMemory(_variables,0,_variables.Length).Span
-    member this.screen = System.ReadOnlyMemory(_memory, this.displayMemoryShift, (int)_displayBufferLength).Span
+    member this.display = System.ReadOnlyMemory(_memory, this.displayMemoryShift, (int)_displayBufferLength).Span
     member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
     member this.stack = System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
     member this.programCounter = _programCounter
     member this.stackPointer = _stack.pointer
+    member this.i = _i
 
-    member this.getDisplayValue(x,y) = getDisplayUnpackedByte(x,y)
+    member this.getDisplayValue(x,y) = _display.getDisplayUnpackedByte(x,y)
 
     member this.initialize(code: ReadOnlySpan<byte>) = 
         loadSprites()
