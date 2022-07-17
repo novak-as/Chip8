@@ -1,7 +1,9 @@
 ﻿open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Graphics
+open Microsoft.Xna.Framework.Input
 open System
 open Chip8Emulator
+
 
 type Chip8 () as chip =
     inherit Game()
@@ -9,6 +11,27 @@ type Chip8 () as chip =
     let graphics = new GraphicsDeviceManager(chip)
     let mutable spriteBatch = Unchecked.defaultof<SpriteBatch>
     let emulator = Emulator()
+    let keymap = dict[
+        Keys.D1, 0;
+        Keys.D2, 1;
+        Keys.D3, 2;
+        Keys.D4, 3;
+
+        Keys.Q, 4;
+        Keys.W, 5;
+        Keys.E, 6;
+        Keys.R, 7;
+
+        Keys.A, 8;
+        Keys.S, 9;
+        Keys.D, 10;
+        Keys.F, 11;
+
+        Keys.Z, 12;
+        Keys.X, 13;
+        Keys.C, 14;
+        Keys.V, 15;
+    ]
 
     do
         chip.IsFixedTimeStep <- true
@@ -23,7 +46,7 @@ type Chip8 () as chip =
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "CONNECT4"
+        let romName = "Connect4"
         let code = Chip8Emulator.loadProgramCode($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
         emulator.initialize(code)
 
@@ -40,7 +63,12 @@ type Chip8 () as chip =
                 createMemoryDump(emulator.memory)
                 exit(1)
 
-        ()
+        emulator.inputs.reset()
+        for key in Keyboard.GetState().GetPressedKeys() do
+            if keymap.ContainsKey(key) then
+                emulator.inputs.set(byte(keymap[key]))
+
+
  
     override this.Draw (gameTime) =
 

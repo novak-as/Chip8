@@ -34,6 +34,31 @@ let splitOctet(octet:byte): byte*byte =
     let n2 = getLow4Bit(octet)
     (n1, n2)
 
+type Input (values: byte[]) = 
+    let _status = Array.create 16 false
+    let _values = values
+
+    let mutable _isWaiting = false
+    let mutable _waitingNumber = 0
+
+
+    member this.isWaiting = _isWaiting
+    member this.status(number) = _status[number]
+    member this.wait(number) =
+        _isWaiting <- true
+        _waitingNumber <- number
+
+    member this.reset () = 
+        for i in 0 .. _status.Length - 1 do
+            _status[i] <- false
+
+    member this.set (number) = 
+
+        if _isWaiting then
+            _isWaiting <- false
+            _values[_waitingNumber] <- number
+
+        _status[int(number)] <- true
 
 type Stack (memory: byte[], shift, length) =
 
@@ -100,8 +125,8 @@ type Emulator ()=
     let _rnd = Random()
     let mutable _i:uint16 = 0us
     let _variables: byte[] = Array.create 16 0uy
-    let _inputs:bool[] = Array.create 16 false
 
+    let _inputs = Input(_variables)
     let _display = Display(_screenWidth, _screenHeight, _memory, _displaySectionShift)
     let _stack = Stack(_memory, _stackSectionShift, _stackBufferLength)
 
@@ -289,14 +314,14 @@ type Emulator ()=
         printfn $"OK: draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
     
     let op_EX9E (x:nible) =
-        let key = _inputs[(int)x]
+        let key = _inputs.status(int(_memory[int(x)]))
         if key then
             _programCounter <- _programCounter+2us
 
         printfn $""
 
     let op_EXA1 (x:nible) =
-        let key = _inputs[(int)x]
+        let key = _inputs.status(int(_memory[int(x)]))
         if not key then
             _programCounter <- _programCounter+2us
 
@@ -308,8 +333,7 @@ type Emulator ()=
         printfn $"OK: "
 
     let op_FX0A (x:nible) = 
-        //_variables[(int)x] <- (byte)(Console.ReadKey().Key)
-
+        _inputs.wait(int(x))
         printfn $"Readkey"
 
     let op_FX15 (x:nible) = 
@@ -370,6 +394,7 @@ type Emulator ()=
     member this.display = System.ReadOnlyMemory(_memory, this.displayMemoryShift, (int)_displayBufferLength).Span
     member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
     member this.stack = System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
+    member this.inputs = _inputs
     member this.programCounter = _programCounter
     member this.stackPointer = _stack.pointer
     member this.i = _i
@@ -429,17 +454,21 @@ type Emulator ()=
                 | (0x0Fuy, x, 5uy, 5uy) -> op_FX55(x)
                 | (0x0Fuy, x, 6uy, 5uy) -> op_FX65(x)
                 | (_, _, _, _) -> raise (Exception("Unknown opcode"))
+        ()
 
     member this.tick()=
-        let command1 = _memory.[(int)_programCounter]
-        let command2 = _memory.[(int)_programCounter+1]
 
-        try
-            fetch () |> this.execute
-        with 
-            | ex -> 
-                let message = $"Unable to process with opcode {command1:X2} {command2:X2} at position {_programCounter-2us}"
-                raise (Exception(message, ex))
+        if not this.inputs.isWaiting then
+            let command1 = _memory.[(int)_programCounter]
+            let command2 = _memory.[(int)_programCounter+1]
+
+            try
+                fetch () |> this.execute
+            with 
+                | ex -> 
+                    let message = $"Unable to process with opcode {command1:X2} {command2:X2} at position {_programCounter-2us}"
+                    raise (Exception(message, ex))
+
 
 
 let loadProgramCode(filename:string) = 
