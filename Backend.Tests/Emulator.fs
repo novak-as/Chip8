@@ -428,6 +428,37 @@ type EmulatorTests ()=
         Assert.AreEqual(result2, emulator.display[displayPosition2])
 
     [<Test>]
+    member this.opEX9E_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xE0uy; 0x9Euy |].AsSpan()
+
+        emulator.initialize(code)
+        let ps = emulator.programCounter
+
+        emulator.inputs.reset()
+        emulator.inputs.set(0uy)
+        emulator.setVMVariable(0, 0uy)
+        emulator.tick()
+
+        Assert.AreEqual(ps+4us, emulator.programCounter)
+
+    [<Test>]
+    member this.opEXA1_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xE0uy; 0xA1uy |].AsSpan()
+
+        emulator.initialize(code)
+        let ps = emulator.programCounter
+
+        emulator.inputs.reset() //no key pressed        
+        emulator.setVMVariable(0, 0uy)
+        emulator.tick()
+
+        Assert.AreEqual(ps+4us, emulator.programCounter)
+
+    [<Test>]
     member this.opFX1E_correct() = 
         let emulator = Emulator()
 

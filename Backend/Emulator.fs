@@ -303,18 +303,18 @@ type Emulator ()=
         printfn $"OK: draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
     
     let op_EX9E (x:nible) =
-        let key = _inputs.status(int(_memory[int(x)]))
+        let key = _inputs.status(int(_variables[int(x)]))
         if key then
             _programCounter <- _programCounter+2us
 
-        printfn $""
+        printfn $"OK: Skip if input[V[{x}]] is NOT pressed: {key}"
 
     let op_EXA1 (x:nible) =
-        let key = _inputs.status(int(_memory[int(x)]))
+        let key = _inputs.status(int(_variables[int(x)]))
         if not key then
             _programCounter <- _programCounter+2us
 
-        printfn $""
+        printfn $"OK: Skip if input[V[{x}]] is pressed: {not key}"
 
     let op_FX07 (x:nible) = 
         _variables[(int)x] <- _delayTimer
