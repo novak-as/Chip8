@@ -338,12 +338,12 @@ type Emulator ()=
     let op_FX1E (x:nible) = 
         _i <- _i + (uint16)(_variables[(int)x])
 
-        printfn $"I += v[{x}]: {_i}"
+        printfn $"OK: I += v[{x}]: {_i}"
 
     let op_FX29 (x:nible) =
         let number = _variables[(int)x]
         _i <- (uint16)number * 5us
-        printfn $"I = addr({x}): {_i}"
+        printfn $"OK: I = addr({x}): {_i}"
 
     let op_FX33 (x:nible)=
         let value = _variables[(int)x]
@@ -352,7 +352,7 @@ type Emulator ()=
         _memory[(int)(_i+(uint16)1uy)] <- (value % 100uy) / 10uy
         _memory[(int)(_i+(uint16)2uy)] <- (value % 100uy) % 10uy
 
-        printfn $""
+        printfn $"OK: m[{_i}..{_i+2us} = bcd(m[{x}]): {_variables[int(x)]}"
 
     let op_FX55 (x:nible) =
         for i in 0uy .. x do

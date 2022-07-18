@@ -427,6 +427,18 @@ type EmulatorTests ()=
         Assert.AreEqual(result1, emulator.display[displayPosition1])
         Assert.AreEqual(result2, emulator.display[displayPosition2])
 
+    [<Test>]
+    member this.opFX1E_correct() = 
+        let emulator = Emulator()
+
+        let code = [| 0xF0uy; 0x1Euy |].AsSpan()
+
+        emulator.initialize(code)
+        emulator.setVMI(10us)
+        emulator.setVMVariable(0, 1uy)
+        emulator.tick()
+
+        Assert.AreEqual(11, emulator.i)
         
     [<Test>]
     member this.opFX29_correct() = 
@@ -439,6 +451,25 @@ type EmulatorTests ()=
         emulator.tick()
 
         Assert.AreEqual(25us, emulator.i)
+
+    [<TestCase(1uy, 0uy, 0uy, 1uy)>]
+    [<TestCase(12uy, 0uy, 1uy, 2uy)>]
+    [<TestCase(123uy, 1uy, 2uy, 3uy)>]
+    member this.opFX33_correct(input:byte, result1:byte, result2:byte, result3:byte)=
+        let emulator = Emulator()
+
+        let code = [| 0xF0uy; 0x33uy |].AsSpan()
+        emulator.initialize(code)
+        emulator.setVMVariable(0, input)
+        emulator.setVMMemory(0,0uy)
+        emulator.setVMMemory(1,0uy)
+        emulator.setVMMemory(2,0uy)
+        emulator.setVMI(0us)
+        emulator.tick()
+
+        Assert.AreEqual(result1, emulator.memory[0])
+        Assert.AreEqual(result2, emulator.memory[1])
+        Assert.AreEqual(result3, emulator.memory[2])
 
     [<Test>]
     member this.opFX55_correct() = 
