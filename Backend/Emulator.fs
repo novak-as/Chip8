@@ -278,15 +278,6 @@ type Emulator ()=
         let coordinateX = _variables[int(x)]
         let coordinateY = _variables[int(y)]
 
-        if coordinateX >= byte(_display.width) then
-            raise (Exception($"Invalid draw call, X coordinate {coordinateX} is out of border"))
-
-        if coordinateY >= byte(_display.height) then
-            raise (Exception($"Invalid draw call, Y coordinate {coordinateY} is out of border"))
-
-        if coordinateX = 50uy then
-            printfn "boom"
-
         for i in 0us .. (uint16)n - 1us do
 
             let addr = int(coordinateX) / 8 + (int(coordinateY) + int(i)) * _display.width/8
@@ -296,16 +287,14 @@ type Emulator ()=
 
             let firstPacked = _display.memory[addr]
             let firstSprite = sprite >>> shift
-
+            _display.memory[addr] <- firstPacked ^^^ firstSprite            
+            
             let secondPacked = _display.memory[addr+1]
-            let secondSprite = sprite <<< (8 - shift)
-
-            _display.memory[addr] <- firstPacked ^^^ firstSprite
+            let secondSprite = byte(uint16(sprite) <<< (8 - shift))
             _display.memory[addr + 1] <- secondPacked ^^^ secondSprite
 
             let xored = firstPacked ^^^ sprite
 
-            //_display.setDisplayPackedByte2D(int(coordinateX), int(coordinateY) + int(i), xored)
             collisionDetected <- collisionDetected || (xored <> firstPacked)
 
         if collisionDetected then

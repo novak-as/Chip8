@@ -4,7 +4,6 @@ open Microsoft.Xna.Framework.Input
 open System
 open Chip8Emulator
 
-
 type Chip8 () as chip =
     inherit Game()
 
@@ -19,13 +18,13 @@ type Chip8 () as chip =
 
         Keys.Q, 4;
         Keys.W, 5;
-        Keys.E, 6;
-        Keys.R, 7;
+        Keys.F, 6;
+        Keys.P, 7;
 
         Keys.A, 8;
-        Keys.S, 9;
-        Keys.D, 10;
-        Keys.F, 11;
+        Keys.R, 9;
+        Keys.S, 10;
+        Keys.T, 11;
 
         Keys.Z, 12;
         Keys.X, 13;
@@ -46,7 +45,7 @@ type Chip8 () as chip =
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "Connect4"
+        let romName = "CONNECT4"
         let code = Chip8Emulator.loadProgramCode($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
         emulator.initialize(code)
 

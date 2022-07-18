@@ -402,24 +402,31 @@ type EmulatorTests ()=
 
         Assert.That(emulator.variables[0]>=min && emulator.variables[0]<=max)
 
-    //[<TestCase(0uy,0uy)>]
-    //[<TestCase(1uy,0uy)>]
-    //member this.opDXYN_correct(x, y) = 
-    //    let emulator = Emulator()
+    [<TestCase(0uy, 0uy, 0xA7uy, 0, 0xA7uy, 1, 0uy)>]
+    [<TestCase(1uy, 0uy, 0xA7uy, 0, 0x53uy, 1, 0x80uy)>]
+    [<TestCase(0uy, 1uy, 0xA7uy, 8, 0xA7uy, 9, 0uy)>]
+    [<TestCase(1uy, 1uy, 0xA7uy, 8, 0x53uy, 9, 0x80uy)>]
+    member this.opDXYN_sipleSprite_correct(x,y,sprite, displayPosition1, result1, displayPosition2, result2) = 
+        let emulator = Emulator()
 
-    //    let code = [| 0xD0uy; 0x05uy|].AsSpan()
+        let code = [| 0xD0uy; 0x11uy|].AsSpan()
 
-    //    emulator.initialize(code)
-    //    emulator.setVMI(0us)
-    //    emulator.setVMVariable(0, x)
-    //    emulator.setVMVariable(1, y)
-    //    emulator.tick()
+        emulator.initialize(code)
 
-    //    Assert.AreEqual(0xF0uy, emulator.display[0])
-    //    Assert.AreEqual(0x90uy, emulator.display[8])
-    //    Assert.AreEqual(0x90uy, emulator.display[16])
-    //    Assert.AreEqual(0x90uy, emulator.display[24])
-    //    Assert.AreEqual(0xF0uy, emulator.display[32])
+        //sprite to draw
+        emulator.setVMMemory(0, sprite)
+        emulator.setVMI(0us)
+
+        //position to draw
+        emulator.setVMVariable(0, x)
+        emulator.setVMVariable(1, y)
+
+        //draw
+        emulator.tick()
+
+        Assert.AreEqual(result1, emulator.display[displayPosition1])
+        Assert.AreEqual(result2, emulator.display[displayPosition2])
+
         
     [<Test>]
     member this.opFX29_correct() = 
