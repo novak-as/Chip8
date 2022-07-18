@@ -461,17 +461,9 @@ type Emulator ()=
 
 
 let loadProgramCode(filename:string) = 
-    let buffer = Array.create (4096 - 512) 0uy
     use reader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read))
-    let mutable index = 0
-
-    while (reader.BaseStream.Position < reader.BaseStream.Length) do
-        let bytes = reader.ReadBytes(2)
-        buffer[index] <- bytes[0]
-        buffer[index+1] <- bytes[1]
-        index <- index + 2
-
-    buffer.AsSpan(0, index - 2)
+        
+    reader.ReadBytes(int(reader.BaseStream.Length)).AsSpan()
 
 let createMemoryDump(buffer: ReadOnlySpan<byte>) = 
     use writer = new BinaryWriter(File.Create($"{Random().NextInt64()}.hex"))
