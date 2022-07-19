@@ -406,7 +406,13 @@ type EmulatorTests ()=
     [<TestCase(1uy, 0uy, 0xA7uy, 0, 0x53uy, 1, 0x80uy)>]
     [<TestCase(0uy, 1uy, 0xA7uy, 8, 0xA7uy, 9, 0uy)>]
     [<TestCase(1uy, 1uy, 0xA7uy, 8, 0x53uy, 9, 0x80uy)>]
-    member this.opDXYN_sipleSprite_correct(x,y,sprite, displayPosition1, result1, displayPosition2, result2) = 
+    //can draw last row byte
+    [<TestCase(56uy, 0uy, 0xA7uy, 7, 0xA7uy, 8, 0uy)>]
+    //can draw the last byte
+    [<TestCase(56uy, 31uy, 0xA7uy, 255, 0xA7uy, 255, 0xA7uy)>]
+    //don't try to shift beyond display memory
+    [<TestCase(63uy, 31uy, 0xFFuy, 255, 1uy, 255, 1uy)>]
+    member this.opDXYN_1rowSprite_correct(x,y,sprite, displayPosition1, result1, displayPosition2, result2) = 
         let emulator = Emulator()
 
         let code = [| 0xD0uy; 0x11uy|].AsSpan()

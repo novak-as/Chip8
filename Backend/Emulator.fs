@@ -278,7 +278,7 @@ type Emulator ()=
         let coordinateX = _variables[int(x)]
         let coordinateY = _variables[int(y)]
 
-        for i in 0us .. (uint16)n - 1us do
+        for i in 0uy .. n - 1uy do
 
             let addr = int(coordinateX) / 8 + (int(coordinateY) + int(i)) * _display.width/8
 
@@ -289,9 +289,10 @@ type Emulator ()=
             let firstSprite = sprite >>> shift
             _display.memory[addr] <- firstPacked ^^^ firstSprite            
             
-            let secondPacked = _display.memory[addr+1]
-            let secondSprite = byte(uint16(sprite) <<< (8 - shift))
-            _display.memory[addr + 1] <- secondPacked ^^^ secondSprite
+            if shift > 0 && addr < 255 then
+                let secondPacked = _display.memory[addr+1]
+                let secondSprite = byte(uint16(sprite) <<< (8 - shift))
+                _display.memory[addr + 1] <- secondPacked ^^^ secondSprite
 
             let xored = firstPacked ^^^ sprite
 
