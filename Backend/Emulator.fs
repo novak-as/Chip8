@@ -37,6 +37,18 @@ let splitOctet(octet:byte): byte*byte =
     let n2 = getLow4Bit(octet)
     (n1, n2)
 
+type SoundTimer () = 
+    let mutable _value = 0uy
+
+    member this.set(value)= 
+        _value <- value
+
+    member this.tick() = 
+        if _value > 0uy then 
+            _value <- _value - 1uy
+            if _value = 0uy then
+                Console.Beep()
+
 type Input (values: byte[]) = 
     let _status = Array.create 16 false
     let _values = values
@@ -133,7 +145,7 @@ type Emulator ()=
     let _stack = Stack(_memory, _stackSectionShift, _stackBufferLength)
 
     let mutable _delayTimer:byte = 0uy
-    let mutable _soundTimer:byte = 0uy
+    let mutable _soundTimer = SoundTimer()
 
 
     let loadCode(code: ReadOnlySpan<byte>) = 
@@ -334,7 +346,7 @@ type Emulator ()=
         logger.Trace $""
 
     let op_FX18 (x:nible) = 
-        _soundTimer <- x
+        _soundTimer.set(x)
 
         logger.Trace $""
 
@@ -385,6 +397,7 @@ type Emulator ()=
     member this.memory = System.ReadOnlyMemory(_memory,0,_memory.Length).Span
     member this.stack = System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
     member this.inputs = _inputs
+    member this.soundTimer = _soundTimer
     member this.programCounter = _programCounter
     member this.stackPointer = _stack.pointer
     member this.i = _i
