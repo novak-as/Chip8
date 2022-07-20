@@ -2,13 +2,21 @@
 open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input
 open System
+open NLog
 open Chip8Emulator
 
-type Chip8 () as chip =
+let logger = LogManager.GetCurrentClassLogger()
+
+type Chip8 () as this =
     inherit Game()
 
-    let graphics = new GraphicsDeviceManager(chip)
+    let graphics = new GraphicsDeviceManager(this)
     let mutable spriteBatch = Unchecked.defaultof<SpriteBatch>
+
+    let mutable texture:Texture2D = null
+    let mutable blockWidth = 0
+    let mutable blockHeight = 0
+
     let emulator = Emulator()
     let keymap = dict[
         Keys.D1, 0;
@@ -33,8 +41,8 @@ type Chip8 () as chip =
     ]
 
     do
-        chip.IsFixedTimeStep <- true
-        chip.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/60.0)
+        this.IsFixedTimeStep <- true
+        this.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/60.0)
 
     override x.Initialize() =
     
@@ -42,12 +50,20 @@ type Chip8 () as chip =
         graphics.PreferredBackBufferHeight <- emulator.displayHeight
         graphics.IsFullScreen <- true
 
+        
+        texture <- Texture2D(this.GraphicsDevice, 1,1)
+        texture.SetData([| Color.White |])
+
+        blockWidth <- graphics.GraphicsDevice.Viewport.Width / emulator.displayWidth
+        blockHeight <- graphics.GraphicsDevice.Viewport.Height / emulator.displayHeight 
+
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "wipeoff"
+        let romName = "cavern.ch8"
         let code = Chip8Emulator.loadProgramCode($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
         emulator.initialize(code)
+        logger.Info($"ROM '{romName}' was loaded")
 
         ()
 
@@ -56,8 +72,8 @@ type Chip8 () as chip =
             emulator.tick()
          with 
             | ex -> 
-                printfn $"{ex.Message}"
-                printfn $"{ex.InnerException}"
+                logger.Fatal $"{ex.Message}"
+                logger.Fatal $"{ex.InnerException}"
 
                 createMemoryDump(emulator.memory)
                 exit(1)
@@ -71,15 +87,7 @@ type Chip8 () as chip =
  
     override this.Draw (gameTime) =
 
-        //TODO: this should be done only once
-        let blockWidth = graphics.GraphicsDevice.Viewport.Width / emulator.displayWidth
-        let blockHeight = graphics.GraphicsDevice.Viewport.Height / emulator.displayHeight
-
-        let texture = Texture2D(chip.GraphicsDevice, 1,1)
-        texture.SetData([| Color.White |])
-
         spriteBatch.Begin()
-        let screen = emulator.display
 
         for x in 0 .. int(emulator.displayWidth) - 1 do
             for y in 0 .. int(emulator.displayHeight) - 1 do

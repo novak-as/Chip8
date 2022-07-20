@@ -9,4 +9,8 @@
     <Compile Include="Emulator.fs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="NLog" Version="5.0.1" />
+  </ItemGroup>
+
 </Project>

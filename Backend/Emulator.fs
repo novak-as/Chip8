@@ -2,6 +2,9 @@
 
 open System
 open System.IO
+open NLog
+
+let logger = LogManager.GetLogger("Emulator")
 
 type nible = byte
 type uint12 = uint16 
@@ -104,7 +107,6 @@ type Display (width, height, memory: byte[], shift) =
 
     member this.setDisplayPackedByte2D(x:int, y:int, value:byte) = 
         let address = y * width/8 + x
-        printfn $"update packed {x},{y}: m[{address}] = {value}"
         this.memory[address] <- value        
 
 
@@ -164,75 +166,75 @@ type Emulator ()=
     let op_00E0 () = 
         for i in 0 .. (int)_displayBufferLength - 1 do
             _display.memory[i] <- 0uy
-        printfn("OK: Clean screen")
+        logger.Trace "OK: Clean screen"
 
     let op_00EE () = 
         _programCounter <- _stack.pop()
-        printfn $"OK: return from subroutine to {_programCounter}"
+        logger.Trace $"OK: return from subroutine to {_programCounter}"
 
     let op_1NNN (nnn:uint12) = 
         _programCounter <- nnn
-        printfn $"OK: jump to {_programCounter}"
+        logger.Trace $"OK: jump to {_programCounter}"
 
     let op_2NNN (nnn: uint12) = 
         _stack.push(uint16(_programCounter))
         _programCounter <- nnn
-        printfn($"OK: Call subroutine at {_programCounter}")
+        logger.Trace($"OK: Call subroutine at {_programCounter}")
 
     let op_3XNN (x:nible, nn:byte) = 
         if _variables[(int)x] = nn then
             _programCounter <- _programCounter + 2us
-        printfn $"OK: Skip if v[{x}] == {nn}: {_variables[(int)x] = nn}"
+        logger.Trace $"OK: Skip if v[{x}] == {nn}: {_variables[(int)x] = nn}"
 
     let op_4XNN (x:nible, nn:byte) = 
         if _variables[(int)x] <> nn then
             _programCounter <- _programCounter + 2us
-        printfn $"OK: Skip if v[{x}] != {nn}: {_variables[(int)x] <> nn}"
+        logger.Trace $"OK: Skip if v[{x}] != {nn}: {_variables[(int)x] <> nn}"
 
     let op_5XY0 (x:nible, y:nible) = 
         if _variables[(int)x] = _variables[(int)y] then
             _programCounter <- _programCounter + 2us
-        printfn $"OK: Skip if v[{x}] == v[{y}]: {_variables[(int)x] = _variables[(int)y]}"
+        logger.Trace $"OK: Skip if v[{x}] == v[{y}]: {_variables[(int)x] = _variables[(int)y]}"
 
     let op_6XNN (x:nible, nn:byte)=
         _variables[(int)x] <- nn
-        printfn $"OK: set v[{x}] <- {nn}"
+        logger.Trace $"OK: set v[{x}] <- {nn}"
 
     let op_7XNN (x:nible, nn:byte)=
         _variables[(int)x] <- _variables[(int)x] + nn
-        printfn $"OK: v[{x}] += {nn}: {_variables[(int)x]}"
+        logger.Trace $"OK: v[{x}] += {nn}: {_variables[(int)x]}"
 
     let op_8XY0 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)y]
-        printfn $"OK: v[{x}] = v[{y}]: {_variables[(int)y]}"
+        logger.Trace $"OK: v[{x}] = v[{y}]: {_variables[(int)y]}"
 
     let op_8XY1 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] ||| _variables[(int)y]
-        printfn $"OK: v[{x}] |= v[{y}]: {_variables[(int)x]}"
+        logger.Trace $"OK: v[{x}] |= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY2 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] &&& _variables[(int)y]
-        printfn $"OK: v[{x}] &= v[{y}]: {_variables[(int)x]}"
+        logger.Trace $"OK: v[{x}] &= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY3 (x:nible, y:nible) = 
         _variables[(int)x] <- _variables[(int)x] ^^^ _variables[(int)y]
-        printfn $"OK: v[{x}] ^= v[{y}]: {_variables[(int)x]}"
+        logger.Trace $"OK: v[{x}] ^= v[{y}]: {_variables[(int)x]}"
 
     let op_8XY4 (x:nible, y:nible) = 
         _variables[15] <- if uint16(_variables[int(x)]) + uint16(_variables[(int)y]) > uint16(Byte.MaxValue) then 1uy else 0uy
         _variables[(int)x] <- _variables[(int)x] + _variables[(int)y]
-        printfn $"OK: v[{x}] += v[{y}]: {_variables[(int)x]}"
+        logger.Trace $"OK: v[{x}] += v[{y}]: {_variables[(int)x]}"
 
     let op_8XY5 (x:nible, y:nible) = 
         _variables[15] <-  if _variables[(int)y] > _variables[(int)x] then 0uy else 1uy
         _variables[(int)x] <- _variables[(int)x] - _variables[(int)y]
-        printfn $"OK: v[{x}] -= v[{y}]: {_variables[(int)x]}, v[0xFF]: {_variables[15]}"
+        logger.Trace $"OK: v[{x}] -= v[{y}]: {_variables[(int)x]}, v[0xFF]: {_variables[15]}"
 
     let op_8XY6 (x:nible) =    
         _variables[15] <- _variables[(int)x] &&& 1uy
         _variables[(int)x] <- _variables[(int)x] >>> 1
 
-        printfn $"OK: "
+        logger.Trace $"OK: "
 
     let op_8XY7 (x:nible, y:nible) = 
         if _variables[(int)x] > _variables[(int)y] then
@@ -241,35 +243,35 @@ type Emulator ()=
             _variables[15] <- 1uy
         _variables[(int)x] <- _variables[(int)y] - _variables[(int)x]
 
-        printfn $"OK: "
+        logger.Trace $"OK: "
 
     let op_8XYE (x:nible) = 
         _variables[15] <- (_variables[(int)x] &&& 0x80uy) >>> 7
         _variables[(int)x] <- _variables[(int)x] <<< 1
 
-        printfn $"OK: "
+        logger.Trace $"OK: "
 
     let op_9XY0 (x:nible, y:nible) = 
         if _variables[int(x)] <> _variables[int(y)] then
             _programCounter <- _programCounter + 2us
-        printfn $"OK: Skip if v[{x}] != v[{y}]: {_variables[int(x)] <> _variables[int(y)]}"
+        logger.Trace $"OK: Skip if v[{x}] != v[{y}]: {_variables[int(x)] <> _variables[int(y)]}"
 
 
     let op_ANNN (nnn:uint12) = 
         _i <- nnn
 
-        printfn $"OK: I = {nnn}"
+        logger.Trace $"OK: I = {nnn}"
 
     let op_BNNN (nnn:uint12) = 
         _programCounter <- uint16(_variables[0]) + nnn
 
-        printfn $"OK: "
+        logger.Trace $"OK: "
 
     let op_CXNN (x:nible, nn:byte)=
         let random = (byte)(_rnd.Next(0,256))
         _variables[(int)x] <- random &&& nn
 
-        printfn $"v[{x}] = random: {_variables[(int)x]}"
+        logger.Trace $"v[{x}] = random: {_variables[(int)x]}"
 
     let op_DXYN (x:byte, y:byte, n:byte)=
 
@@ -301,50 +303,50 @@ type Emulator ()=
         if collisionDetected then
             _variables[15] <- 1uy
 
-        printfn $"OK: draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
+        logger.Trace $"OK: draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
     
     let op_EX9E (x:nible) =
         let key = _inputs.status(int(_variables[int(x)]))
         if key then
             _programCounter <- _programCounter+2us
 
-        printfn $"OK: Skip if input[V[{x}]] is NOT pressed: {key}"
+        logger.Trace $"OK: Skip if input[V[{x}]] is NOT pressed: {key}"
 
     let op_EXA1 (x:nible) =
         let key = _inputs.status(int(_variables[int(x)]))
         if not key then
             _programCounter <- _programCounter+2us
 
-        printfn $"OK: Skip if input[V[{x}]] is pressed: {not key}"
+        logger.Trace $"OK: Skip if input[V[{x}]] is pressed: {not key}"
 
     let op_FX07 (x:nible) = 
         _variables[(int)x] <- _delayTimer
 
-        printfn $"OK: "
+        logger.Trace $"OK: "
 
     let op_FX0A (x:nible) = 
         _inputs.wait(int(x))
-        printfn $"Readkey"
+        logger.Trace $"Readkey"
 
     let op_FX15 (x:nible) = 
         _delayTimer <- x
 
-        printfn $""
+        logger.Trace $""
 
     let op_FX18 (x:nible) = 
         _soundTimer <- x
 
-        printfn $""
+        logger.Trace $""
 
     let op_FX1E (x:nible) = 
         _i <- _i + (uint16)(_variables[(int)x])
 
-        printfn $"OK: I += v[{x}]: {_i}"
+        logger.Trace $"OK: I += v[{x}]: {_i}"
 
     let op_FX29 (x:nible) =
         let number = _variables[(int)x]
         _i <- (uint16)number * 5us
-        printfn $"OK: I = addr({x}): {_i}"
+        logger.Trace $"OK: I = addr({x}): {_i}"
 
     let op_FX33 (x:nible)=
         let value = _variables[(int)x]
@@ -353,23 +355,21 @@ type Emulator ()=
         _memory[(int)(_i+(uint16)1uy)] <- (value % 100uy) / 10uy
         _memory[(int)(_i+(uint16)2uy)] <- (value % 100uy) % 10uy
 
-        printfn $"OK: m[{_i}..{_i+2us} = bcd(m[{x}]): {_variables[int(x)]}"
+        logger.Trace $"OK: m[{_i}..{_i+2us} = bcd(m[{x}]): {_variables[int(x)]}"
 
     let op_FX55 (x:nible) =
         for i in 0uy .. x do
             _memory[int(_i)+int(i)] <- _variables[(int)i]
-            printfn $"OK: m[{int(_i)+int(i)}] =  v[{i}]: {_memory[int(_i) + int(i)]}"
+            logger.Trace $"OK: m[{int(_i)+int(i)}] =  v[{i}]: {_memory[int(_i) + int(i)]}"
 
     let op_FX65 (x:nible) =
         for i in 0uy .. x do
             _variables[int(i)] <- _memory[int(_i)+int(i)]
-            printfn $"OK: v[{i}] = m[{int(_i)+int(i)}]: {_memory[int(_i)+int(i)]}"
+            logger.Trace $"OK: v[{i}] = m[{int(_i)+int(i)}]: {_memory[int(_i)+int(i)]}"
 
     let fetch(): byte*byte = 
         let byte1 = _memory.[int(_programCounter)]
         let byte2 = _memory.[int(_programCounter)+1]
-
-        printf $"{_programCounter}: [0x{byte1:X2} 0x{byte2:X2}] | "
 
         _programCounter <- _programCounter + 2us
 
