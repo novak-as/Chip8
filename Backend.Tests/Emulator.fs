@@ -465,7 +465,7 @@ type EmulatorTests ()=
     [<TestCase(1uy, 0, 0uy, 0uy, 0uy)>]
     [<TestCase(1uy, 0, 1uy, 0uy, 1uy)>]
     [<TestCase(0xFFuy, 1, 0uy, 0uy, 0uy)>]
-    [<TestCase(0xFFuy, 1, 0xFFuy, 0xFFuy, 1uy)>]
+    [<TestCase(0xFFuy, 1, 0uy, 0xFFuy, 1uy)>]
     member this.opDXYN_R15_correct(sprite, x, oldDisplay1, oldDisplay2, result) = 
         let emulator = Emulator()
 

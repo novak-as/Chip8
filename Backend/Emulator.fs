@@ -308,7 +308,7 @@ type Emulator ()=
                 let secondPacked = _display.memory[addr+1]
                 let secondSprite = byte(uint16(sprite) <<< (8 - shift))
                 _display.memory[addr + 1] <- secondPacked ^^^ secondSprite
-                collisionDetected <- collisionDetected || secondPacked <> (secondPacked &&& (secondSprite))
+                collisionDetected <- collisionDetected || secondPacked <> (secondPacked &&& (~~~ secondSprite))
 
         if collisionDetected then
             _variables[15] <- 1uy
