@@ -402,16 +402,14 @@ type EmulatorTests ()=
 
         Assert.That(emulator.variables[0]>=min && emulator.variables[0]<=max)
 
-    [<TestCase(0uy, 0uy, 0xA7uy, 0, 0xA7uy, 1, 0uy)>]
-    [<TestCase(1uy, 0uy, 0xA7uy, 0, 0x53uy, 1, 0x80uy)>]
-    [<TestCase(0uy, 1uy, 0xA7uy, 8, 0xA7uy, 9, 0uy)>]
-    [<TestCase(1uy, 1uy, 0xA7uy, 8, 0x53uy, 9, 0x80uy)>]
-    //can draw last row byte
-    [<TestCase(56uy, 0uy, 0xA7uy, 7, 0xA7uy, 8, 0uy)>]
-    //can draw the last byte
-    [<TestCase(56uy, 31uy, 0xA7uy, 255, 0xA7uy, 255, 0xA7uy)>]
-    //don't try to shift beyond display memory
-    [<TestCase(63uy, 31uy, 0xFFuy, 255, 1uy, 255, 1uy)>]
+    [<TestCase(0uy, 0uy, 0xA7uy, 0, 0xA7uy, 1, 0uy)>] // top left corner
+    [<TestCase(56uy, 0uy, 0xA7uy, 7, 0xA7uy, 8, 0uy)>] // top right corner
+    [<TestCase(0uy, 31uy, 0xA7uy, 248, 0xA7uy, 249, 0uy)>] // bottom left corner
+    [<TestCase(56uy, 31uy, 0xA7uy, 255, 0xA7uy, 255, 0xA7uy)>] // bottom right corner
+    [<TestCase(1uy, 1uy, 0xA7uy, 8, 0x53uy, 9, 0x80uy)>] // affect multiple packed bytes
+    [<TestCase(56uy, 0uy, 0xA7uy, 7, 0xA7uy, 8, 0uy)>] //can draw last row byte
+    [<TestCase(56uy, 31uy, 0xA7uy, 255, 0xA7uy, 255, 0xA7uy)>] //can draw the last byte
+    [<TestCase(63uy, 31uy, 0xFFuy, 255, 1uy, 255, 1uy)>] //don't try to shift beyond display memory
     member this.opDXYN_1rowSprite_correct(x,y,sprite, displayPosition1, result1, displayPosition2, result2) = 
         let emulator = Emulator()
 
@@ -432,6 +430,64 @@ type EmulatorTests ()=
 
         Assert.AreEqual(result1, emulator.display[displayPosition1])
         Assert.AreEqual(result2, emulator.display[displayPosition2])
+
+
+    [<TestCase(0uy, 0uy, 0xA7uy, 0x7Auy, 0, 0xA7uy, 1, 0uy, 8, 0x7Auy, 9, 0uy)>] // top left
+    [<TestCase(56uy, 0uy, 0xA7uy, 0x7Auy, 7, 0xA7uy, 8, 0uy, 15, 0x7Auy, 16, 0uy)>] // top right
+    [<TestCase(0uy, 30uy, 0xA7uy, 0x7Auy, 240, 0xA7uy, 241, 0uy, 248, 0x7Auy, 249, 0uy)>] // bottom left corner
+    [<TestCase(56uy, 30uy, 0xA7uy, 0x7Auy, 247, 0xA7uy, 248, 0uy, 255, 0x7Auy, 255, 0x7Auy)>] // bottom right corner
+    member this.opDXYN_2RowSprite_correct(x,y, sprite1, sprite2,
+            displayPosition1, result1,  displayPosition2, result2,
+            displayPosition3, result3, displayPosition4, result4) = 
+        let emulator = Emulator()
+
+        let code = [| 0xD0uy; 0x12uy|].AsSpan()
+
+        emulator.initialize(code)
+
+        //sprite to draw
+        emulator.setVMMemory(0, sprite1)
+        emulator.setVMMemory(1, sprite2)
+        emulator.setVMI(0us)
+
+        //position to draw
+        emulator.setVMVariable(0, x)
+        emulator.setVMVariable(1, y)
+
+        //draw
+        emulator.tick()
+
+        Assert.AreEqual(result1, emulator.display[displayPosition1])
+        Assert.AreEqual(result2, emulator.display[displayPosition2])
+        Assert.AreEqual(result3, emulator.display[displayPosition3])
+        Assert.AreEqual(result4, emulator.display[displayPosition4])
+
+    [<TestCase(1uy, 0, 0uy, 0uy, 0uy)>]
+    [<TestCase(1uy, 0, 1uy, 0uy, 1uy)>]
+    [<TestCase(0xFFuy, 1, 0uy, 0uy, 0uy)>]
+    [<TestCase(0xFFuy, 1, 0xFFuy, 0xFFuy, 1uy)>]
+    member this.opDXYN_R15_correct(sprite, x, oldDisplay1, oldDisplay2, result) = 
+        let emulator = Emulator()
+
+        let code = [| 0xD0uy; 0x11uy|].AsSpan()
+        emulator.initialize(code)
+
+        //sprite to draw
+        emulator.setVMMemory(0, sprite)
+        emulator.setVMI(0us)
+
+        //position to draw
+        emulator.setVMVariable(0, x)
+        emulator.setVMVariable(1, 0uy)
+
+        //display state
+        emulator.setVMMemory(emulator.displayMemoryShift, oldDisplay1)
+        emulator.setVMMemory(emulator.displayMemoryShift+1, oldDisplay2)
+
+        //draw
+        emulator.tick()
+
+        Assert.AreEqual(result, emulator.variables[15])
 
     [<Test>]
     member this.opEX9E_correct() = 
@@ -458,7 +514,7 @@ type EmulatorTests ()=
         emulator.initialize(code)
         let ps = emulator.programCounter
 
-        emulator.inputs.reset() //no key pressed        
+        emulator.inputs.reset() //no key pressed
         emulator.setVMVariable(0, 0uy)
         emulator.tick()
 

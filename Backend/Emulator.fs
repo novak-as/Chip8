@@ -301,16 +301,14 @@ type Emulator ()=
 
             let firstPacked = _display.memory[addr]
             let firstSprite = sprite >>> shift
-            _display.memory[addr] <- firstPacked ^^^ firstSprite            
+            _display.memory[addr] <- firstPacked ^^^ firstSprite
+            collisionDetected <- collisionDetected || firstPacked <> (firstPacked &&& (~~~ firstSprite))
             
             if shift > 0 && addr < 255 then
                 let secondPacked = _display.memory[addr+1]
                 let secondSprite = byte(uint16(sprite) <<< (8 - shift))
                 _display.memory[addr + 1] <- secondPacked ^^^ secondSprite
-
-            let xored = firstPacked ^^^ sprite
-
-            collisionDetected <- collisionDetected || (xored <> firstPacked)
+                collisionDetected <- collisionDetected || secondPacked <> (secondPacked &&& (secondSprite))
 
         if collisionDetected then
             _variables[15] <- 1uy
