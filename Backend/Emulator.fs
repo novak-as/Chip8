@@ -326,7 +326,7 @@ type Emulator ()=
                                     |> List.map (fun y -> (coordinateY+y, int(_i)+y))
                                     |> List.filter (fun t -> (fst t) < 32)
                                     |> List.map (fun t -> drawRow coordinateX (fst t) (snd t))
-                                    |> List.reduce (||)
+                                    |> List.fold (||) false
 
         _variables[15] <- if collisionDetected then 1uy else 0uy
 
