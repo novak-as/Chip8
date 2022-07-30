@@ -95,9 +95,6 @@ type Stack (memory: byte[], shift, length) =
 
         let slice = this.memory.Slice(_pointer<<<1, 2)
 
-        let bytes = value |> BitConverter.GetBytes
-        let bytes2 = BitConverter.GetBytes(value)
-
         let reversed = value |> BitConverter.GetBytes |> reverseBytes
         reversed.CopyTo(slice)
 
@@ -298,36 +295,40 @@ type Emulator ()=
             let pos1 = (val1 &&& (1uy <<< shift)) >>> shift
             let pos2 = (val2 &&& (1uy <<< shift)) >>> shift
 
-            match (shift = 8, pos1, pos2) with
-                | (true, _, _) -> false
-                | (false, 1uy, 1uy) -> true
+            match (shift, pos1, pos2) with
+                | (8, _, _) -> false
+                | (_, 1uy, 1uy) -> true
                 | (_,_,_) -> detectChanged(val1, val2, shift+1)  
 
-        let mutable collisionDetected = false
+        let drawSprite addr sprite = 
+            let packed = _display.memory[addr]
+            let xored = packed ^^^ sprite
+            _display.memory[addr] <- xored
+            detectChanged(packed, sprite, 0)
 
-        let coordinateX = _variables[int(x)]
-        let coordinateY = _variables[int(y)]
+        let drawRow x y spriteAddress =
+            let addr = x / 8 + y * _display.width/8
+            let sprite = _memory[spriteAddress]
+            let shift = x % 8
 
-        for i in 0uy .. n - 1uy do
+            let first = drawSprite addr (sprite>>>shift)
+            let second = match (shift > 0, addr < 255) with
+                            | (true, true) -> drawSprite (addr+1) (sprite<<<(8-shift))
+                            | (_, _) -> false
 
-            let addr = int(coordinateX) / 8 + (int(coordinateY) + int(i)) * _display.width/8
-                
-            let sprite = _memory[int(_i)+int(i)]
-            let shift = int(coordinateX) % 8
-
-            let firstPacked = _display.memory[addr]
-            let firstSprite = sprite >>> shift 
-            _display.memory[addr] <- firstPacked ^^^ firstSprite
-            collisionDetected <- collisionDetected || detectChanged(firstPacked, _display.memory[addr], 0)
+            first || second
             
-            if shift > 0 && addr < 255 then
-                let secondPacked = _display.memory[addr+1]
-                let secondSprite = sprite <<< 8 - shift 
-                _display.memory[addr+1] <- secondPacked ^^^ secondSprite
-                collisionDetected <- collisionDetected || detectChanged(secondPacked, secondSprite, 0)
 
-        if collisionDetected then
-            _variables[15] <- 1uy
+        let coordinateX = int(_variables[int(x)])
+        let coordinateY = int(_variables[int(y)])
+
+        let collisionDetected = [0..int(n)-1] 
+                                    |> List.map (fun y -> (coordinateY+y, int(_i)+y))
+                                    |> List.filter (fun t -> (fst t) < 32)
+                                    |> List.map (fun t -> drawRow coordinateX (fst t) (snd t))
+                                    |> List.reduce (||)
+
+        _variables[15] <- if collisionDetected then 1uy else 0uy
 
         logger.Trace $"OK: draw screen at ({coordinateX};{coordinateY}), total {n} rows; collision {collisionDetected}"
     
