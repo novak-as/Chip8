@@ -21,7 +21,7 @@ type ToolsTests () =
 
     [<Test>]
     member this.getLow12Bit_correct() =
-        let bit12 = Chip8Emulator.getLow12Bit(0xABuy, 0xCDuy)
+        let bit12 = Chip8Emulator.getLow12Bit 0xABuy 0xCDuy
         Assert.AreEqual(0x0BCDus, bit12)
 
     [<Test>]
@@ -65,7 +65,7 @@ type DisplayTests () =
         let buffer = Array.create 256 0uy
         let display = Display(64, 32, buffer, 0)
 
-        display.setDisplayPackedByte2D(x,y, 0xAAuy)
+        display.setDisplayPackedByte2D x y 0xAAuy
 
         let addr = x + display.width/8 * y
         Assert.AreEqual(0xAAuy, display.memory[addr])
@@ -80,14 +80,14 @@ type DisplayTests () =
 
         display.memory[x + display.width/8*y] <- 0xA9uy
 
-        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8,y))
-        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+1,y))
-        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8+2,y))
-        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+3,y))
-        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8+4,y))
-        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+5,y))
-        Assert.AreEqual(false, display.getDisplayUnpackedByte(x*8+6,y))
-        Assert.AreEqual(true, display.getDisplayUnpackedByte(x*8+7,y))
+        Assert.AreEqual(true, display.getUnpackedByte (x*8) y)
+        Assert.AreEqual(false, display.getUnpackedByte (x*8+1) y)
+        Assert.AreEqual(true, display.getUnpackedByte (x*8+2) y)
+        Assert.AreEqual(false, display.getUnpackedByte (x*8+3) y)
+        Assert.AreEqual(true, display.getUnpackedByte (x*8+4) y)
+        Assert.AreEqual(false, display.getUnpackedByte (x*8+5) y)
+        Assert.AreEqual(false, display.getUnpackedByte (x*8+6) y)
+        Assert.AreEqual(true, display.getUnpackedByte (x*8+7) y)
 
 [<TestFixture>]
 type EmulatorTests ()=
@@ -106,18 +106,18 @@ type EmulatorTests ()=
     member this.setVMMemory_correct() = 
         let emulator = Emulator()
 
-        emulator.setVMMemory(emulator.displayMemoryShift, 0xFFuy)
+        emulator.setEmulatorMemory emulator.displayMemoryShift 0xFFuy
         Assert.AreEqual(0xFFuy, emulator.memory[emulator.displayMemoryShift])
 
     [<Test>]
     member this.op00E0_correct() = 
         let emulator = Emulator()
 
-        emulator.setVMMemory(emulator.displayMemoryShift, 0xFFuy)
+        emulator.setEmulatorMemory emulator.displayMemoryShift 0xFFuy
         emulator.initialize([| 0x00uy; 0xE0uy |].AsSpan())
         emulator.tick()
 
-        Assert.AreEqual(0x00uy, emulator.display[0])
+        Assert.AreEqual(0x00uy, emulator.display.memory[0])
 
     [<Test>]
     member this.op1NNN_correct() = 
@@ -137,8 +137,8 @@ type EmulatorTests ()=
         emulator.initialize(code)
 
         //add return at correct address
-        emulator.setVMMemory(0x0666,  0x00uy)
-        emulator.setVMMemory(0x0667,  0xEEuy)
+        emulator.setEmulatorMemory 0x0666 0x00uy
+        emulator.setEmulatorMemory 0x0667 0xEEuy
 
         let pc = emulator.programCounter
         emulator.tick()
@@ -156,9 +156,9 @@ type EmulatorTests ()=
         emulator.tick()
 
         Assert.AreEqual(0x0666us, emulator.programCounter)
-        Assert.AreEqual(1,emulator.stackPointer)
-        Assert.AreEqual(0x02uy, emulator.stack[0])
-        Assert.AreEqual(0x02uy, emulator.stack[1])
+        Assert.AreEqual(1,emulator.stack.pointer)
+        Assert.AreEqual(0x02uy, emulator.stack.memory[0])
+        Assert.AreEqual(0x02uy, emulator.stack.memory[1])
 
     [<TestCase(0xFFuy, 4us)>]
     [<TestCase(0xF5uy, 2us)>]
@@ -169,7 +169,7 @@ type EmulatorTests ()=
 
         let pc = emulator.programCounter
         emulator.initialize(code)
-        emulator.setVMVariable(0, variable)
+        emulator.setEmulatorVariable 0 variable
         emulator.tick()
 
         Assert.AreEqual(pc+shift, emulator.programCounter)
@@ -183,7 +183,7 @@ type EmulatorTests ()=
 
         let pc = emulator.programCounter
         emulator.initialize(code)
-        emulator.setVMVariable(0, variable)
+        emulator.setEmulatorVariable 0 variable
         emulator.tick()
 
         Assert.AreEqual(pc+shift, emulator.programCounter)
@@ -197,8 +197,8 @@ type EmulatorTests ()=
 
         let pc = emulator.programCounter
         emulator.initialize(code)
-        emulator.setVMVariable(0, variable1)
-        emulator.setVMVariable(1, variable2)
+        emulator.setEmulatorVariable 0 variable1
+        emulator.setEmulatorVariable 1 variable2
         emulator.tick()
 
         Assert.AreEqual(pc+shift, emulator.programCounter)
@@ -212,7 +212,7 @@ type EmulatorTests ()=
         emulator.initialize(code)
         emulator.tick()
 
-        Assert.AreEqual(0xFFuy, emulator.variables[0])
+        Assert.AreEqual(0xFFuy, emulator.registers[0])
 
     [<Test>]
     member this.op7XNN_correct() = 
@@ -221,10 +221,10 @@ type EmulatorTests ()=
         let code = [| 0x70uy; 0x01uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, 1uy)
+        emulator.setEmulatorVariable 0 1uy
         emulator.tick()
 
-        Assert.AreEqual(0x02uy, emulator.variables[0])
+        Assert.AreEqual(0x02uy, emulator.registers[0])
 
     [<Test>]
     member this.op8XY0_correct() = 
@@ -233,11 +233,11 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x10uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, 1uy)
-        emulator.setVMVariable(1, 2uy)
+        emulator.setEmulatorVariable 0 1uy
+        emulator.setEmulatorVariable 1 2uy
         emulator.tick()
 
-        Assert.AreEqual(2uy, emulator.variables[0])
+        Assert.AreEqual(2uy, emulator.registers[0])
 
     [<Test>]
     member this.op8XY1_correct() = 
@@ -246,11 +246,11 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x11uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, 0xF0uy)
-        emulator.setVMVariable(1, 0x0Fuy)
+        emulator.setEmulatorVariable 0 0xF0uy
+        emulator.setEmulatorVariable 1 0x0Fuy
         emulator.tick()
 
-        Assert.AreEqual(0xFFuy, emulator.variables[0])
+        Assert.AreEqual(0xFFuy, emulator.registers[0])
 
     [<Test>]
     member this.op8XY2_correct() = 
@@ -259,11 +259,11 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x12uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, 0xF1uy)
-        emulator.setVMVariable(1, 0x1Fuy)
+        emulator.setEmulatorVariable 0 0xF1uy
+        emulator.setEmulatorVariable 1 0x1Fuy
         emulator.tick()
 
-        Assert.AreEqual(0x11uy, emulator.variables[0])
+        Assert.AreEqual(0x11uy, emulator.registers[0])
 
     [<Test>]
     member this.op8XY3_correct() = 
@@ -272,11 +272,11 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x13uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, 0xF1uy)
-        emulator.setVMVariable(1, 0x1Fuy)
+        emulator.setEmulatorVariable 0 0xF1uy
+        emulator.setEmulatorVariable 1 0x1Fuy
         emulator.tick()
 
-        Assert.AreEqual(0xEEuy, emulator.variables[0])
+        Assert.AreEqual(0xEEuy, emulator.registers[0])
 
     [<TestCase(1uy, 2uy, 3uy, 0uy)>]
     [<TestCase(1uy, 255uy, 0uy, 1uy)>]
@@ -286,12 +286,12 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x14uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, val1)
-        emulator.setVMVariable(1, val2)
+        emulator.setEmulatorVariable 0 val1
+        emulator.setEmulatorVariable 1 val2
         emulator.tick()
 
-        Assert.AreEqual(result, emulator.variables[0])
-        Assert.AreEqual(carryover, emulator.variables[15])
+        Assert.AreEqual(result, emulator.registers[0])
+        Assert.AreEqual(carryover, emulator.registers[15])
 
     [<TestCase(1uy, 2uy, 255uy, 0uy)>]
     [<TestCase(2uy, 1uy, 1uy, 1uy)>]
@@ -301,12 +301,12 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x15uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, val1)
-        emulator.setVMVariable(1, val2)
+        emulator.setEmulatorVariable 0 val1
+        emulator.setEmulatorVariable 1 val2
         emulator.tick()
 
-        Assert.AreEqual(result, emulator.variables[0])
-        Assert.AreEqual(carryover, emulator.variables[15])
+        Assert.AreEqual(result, emulator.registers[0])
+        Assert.AreEqual(carryover, emulator.registers[15])
 
     [<TestCase(0xFFuy, 0x7Fuy, 1us)>]
     [<TestCase(0xFEuy, 0x7Fuy, 0us)>]
@@ -316,11 +316,11 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x16uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, initial)
+        emulator.setEmulatorVariable 0 initial
         emulator.tick()
 
-        Assert.AreEqual(afterShift, emulator.variables[0])
-        Assert.AreEqual(carryover, emulator.variables[15])
+        Assert.AreEqual(afterShift, emulator.registers[0])
+        Assert.AreEqual(carryover, emulator.registers[15])
 
     [<TestCase(5uy, 2uy, 253uy, 0us)>]
     [<TestCase(5uy, 7uy, 2uy, 1us)>]
@@ -330,12 +330,12 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x17uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, val1)
-        emulator.setVMVariable(1, val2)
+        emulator.setEmulatorVariable 0 val1
+        emulator.setEmulatorVariable 1 val2
         emulator.tick()
 
-        Assert.AreEqual(result, emulator.variables[0])
-        Assert.AreEqual(carryover, emulator.variables[15])
+        Assert.AreEqual(result, emulator.registers[0])
+        Assert.AreEqual(carryover, emulator.registers[15])
 
     [<TestCase(0xFFuy, 0xFEuy, 1us)>]
     [<TestCase(0x7Fuy, 0xFEuy, 0us)>]
@@ -345,11 +345,11 @@ type EmulatorTests ()=
         let code = [| 0x80uy; 0x1Euy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, initial)
+        emulator.setEmulatorVariable 0 initial
         emulator.tick()
 
-        Assert.AreEqual(afterShift, emulator.variables[0])
-        Assert.AreEqual(carryover, emulator.variables[15])
+        Assert.AreEqual(afterShift, emulator.registers[0])
+        Assert.AreEqual(carryover, emulator.registers[15])
 
     [<TestCase(1uy, 1uy, 2uy)>]
     [<TestCase(2uy, 1uy, 4uy)>]
@@ -360,8 +360,8 @@ type EmulatorTests ()=
 
         let pc = emulator.programCounter
         emulator.initialize(code)
-        emulator.setVMVariable(0, val1)
-        emulator.setVMVariable(1, val2)
+        emulator.setEmulatorVariable 0 val1
+        emulator.setEmulatorVariable 1 val2
         emulator.tick()
 
         Assert.AreEqual(pc+shift, emulator.programCounter)
@@ -384,7 +384,7 @@ type EmulatorTests ()=
         let code = [| 0xB1uy; 0x24uy; |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, 2uy)
+        emulator.setEmulatorVariable 0 2uy
         emulator.tick()
 
         Assert.AreEqual(294, emulator.programCounter)
@@ -400,7 +400,7 @@ type EmulatorTests ()=
         emulator.initialize(code)
         emulator.tick()
 
-        Assert.That(emulator.variables[0]>=min && emulator.variables[0]<=max)
+        Assert.That(emulator.registers[0]>=min && emulator.registers[0]<=max)
 
     [<TestCase(0uy, 0uy, 0b11001011uy, 0, 0b11001011uy, 1, 0uy)>] // top left corner
     [<TestCase(56uy, 0uy, 0b11001011uy, 7, 0b11001011uy, 8, 0uy)>] // top right corner
@@ -418,18 +418,18 @@ type EmulatorTests ()=
         emulator.initialize(code)
 
         //sprite to draw
-        emulator.setVMMemory(0, sprite)
-        emulator.setVMI(0us)
+        emulator.setEmulatorMemory 0 sprite
+        emulator.setEmulatorI(0us)
 
         //position to draw
-        emulator.setVMVariable(0, x)
-        emulator.setVMVariable(1, y)
+        emulator.setEmulatorVariable 0 x
+        emulator.setEmulatorVariable 1 y
 
         //draw
         emulator.tick()
 
-        Assert.AreEqual(result1, emulator.display[displayPosition1])
-        Assert.AreEqual(result2, emulator.display[displayPosition2])
+        Assert.AreEqual(result1, emulator.display.memory[displayPosition1])
+        Assert.AreEqual(result2, emulator.display.memory[displayPosition2])
 
 
     [<TestCase(0uy, 0uy, 0xA7uy, 0x7Auy, 0, 0xA7uy, 1, 0uy, 8, 0x7Auy, 9, 0uy)>] // top left
@@ -446,21 +446,21 @@ type EmulatorTests ()=
         emulator.initialize(code)
 
         //sprite to draw
-        emulator.setVMMemory(0, sprite1)
-        emulator.setVMMemory(1, sprite2)
-        emulator.setVMI(0us)
+        emulator.setEmulatorMemory 0 sprite1
+        emulator.setEmulatorMemory 1 sprite2
+        emulator.setEmulatorI(0us)
 
         //position to draw
-        emulator.setVMVariable(0, x)
-        emulator.setVMVariable(1, y)
+        emulator.setEmulatorVariable 0 x
+        emulator.setEmulatorVariable 1 y
 
         //draw
         emulator.tick()
 
-        Assert.AreEqual(result1, emulator.display[displayPosition1])
-        Assert.AreEqual(result2, emulator.display[displayPosition2])
-        Assert.AreEqual(result3, emulator.display[displayPosition3])
-        Assert.AreEqual(result4, emulator.display[displayPosition4])
+        Assert.AreEqual(result1, emulator.display.memory[displayPosition1])
+        Assert.AreEqual(result2, emulator.display.memory[displayPosition2])
+        Assert.AreEqual(result3, emulator.display.memory[displayPosition3])
+        Assert.AreEqual(result4, emulator.display.memory[displayPosition4])
 
     [<TestCase(0b11000000uy, 2, 0uy, 0uy, 0uy)>]
     [<TestCase(0b11000000uy, 2, 0xFFuy, 0uy, 1uy)>]
@@ -473,21 +473,21 @@ type EmulatorTests ()=
         emulator.initialize(code)
 
         //sprite to draw
-        emulator.setVMMemory(0, sprite)
-        emulator.setVMI(0us)
+        emulator.setEmulatorMemory 0 sprite
+        emulator.setEmulatorI(0us)
 
         //position to draw
-        emulator.setVMVariable(0, x)
-        emulator.setVMVariable(1, 0uy)
+        emulator.setEmulatorVariable 0 x
+        emulator.setEmulatorVariable 1 0uy
 
         //display state
-        emulator.setVMMemory(emulator.displayMemoryShift, oldDisplay1)
-        emulator.setVMMemory(emulator.displayMemoryShift+1, oldDisplay2)
+        emulator.setEmulatorMemory emulator.displayMemoryShift oldDisplay1
+        emulator.setEmulatorMemory (emulator.displayMemoryShift+1) oldDisplay2
 
         //draw
         emulator.tick()
 
-        Assert.AreEqual(result, emulator.variables[15])
+        Assert.AreEqual(result, emulator.registers[15])
 
     [<Test>]
     member this.opEX9E_correct() = 
@@ -498,10 +498,10 @@ type EmulatorTests ()=
         emulator.initialize(code)
         let ps = emulator.programCounter
 
-        emulator.inputs.reset()
-        emulator.inputs.set(0uy)
-        emulator.setVMVariable(0, 0uy)
-        emulator.tick()
+        emulator.inputs.reset ()
+        emulator.inputs.set 0uy
+        emulator.setEmulatorVariable 0 0uy
+        emulator.tick ()
 
         Assert.AreEqual(ps+4us, emulator.programCounter)
 
@@ -515,7 +515,7 @@ type EmulatorTests ()=
         let ps = emulator.programCounter
 
         emulator.inputs.reset() //no key pressed
-        emulator.setVMVariable(0, 0uy)
+        emulator.setEmulatorVariable 0 0uy
         emulator.tick()
 
         Assert.AreEqual(ps+4us, emulator.programCounter)
@@ -527,8 +527,8 @@ type EmulatorTests ()=
         let code = [| 0xF0uy; 0x1Euy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMI(10us)
-        emulator.setVMVariable(0, 1uy)
+        emulator.setEmulatorI(10us)
+        emulator.setEmulatorVariable 0 1uy
         emulator.tick()
 
         Assert.AreEqual(11, emulator.i)
@@ -540,7 +540,7 @@ type EmulatorTests ()=
         let code = [| 0xF0uy; 0x29uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMVariable(0, 5uy)
+        emulator.setEmulatorVariable 0 5uy
         emulator.tick()
 
         Assert.AreEqual(25us, emulator.i)
@@ -553,11 +553,11 @@ type EmulatorTests ()=
 
         let code = [| 0xF0uy; 0x33uy |].AsSpan()
         emulator.initialize(code)
-        emulator.setVMVariable(0, input)
-        emulator.setVMMemory(0,0uy)
-        emulator.setVMMemory(1,0uy)
-        emulator.setVMMemory(2,0uy)
-        emulator.setVMI(0us)
+        emulator.setEmulatorVariable 0 input
+        emulator.setEmulatorMemory 0 0uy
+        emulator.setEmulatorMemory 1 0uy
+        emulator.setEmulatorMemory 2 0uy
+        emulator.setEmulatorI(0us)
         emulator.tick()
 
         Assert.AreEqual(result1, emulator.memory[0])
@@ -571,9 +571,9 @@ type EmulatorTests ()=
         let code = [| 0xFFuy; 0x55uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMI(1us)
+        emulator.setEmulatorI(1us)
         for i in 0 .. 15 do
-            emulator.setVMVariable(i,10uy)
+            emulator.setEmulatorVariable i 10uy
 
         emulator.tick()
 
@@ -588,13 +588,13 @@ type EmulatorTests ()=
         let code = [| 0xFFuy; 0x65uy |].AsSpan()
 
         emulator.initialize(code)
-        emulator.setVMI(1us)
+        emulator.setEmulatorI(1us)
         for i in 0 .. 15 do
-            emulator.setVMMemory(1+i,10uy)
+            emulator.setEmulatorMemory (1+i) 10uy
 
         emulator.tick()
 
         for i in 0 .. 15 do
-            Assert.AreEqual(10us, emulator.variables[i])
+            Assert.AreEqual(10us, emulator.registers[i])
 
         Assert.AreEqual(1, emulator.i)

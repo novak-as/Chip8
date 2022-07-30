@@ -48,7 +48,7 @@ type Chip8 () as this =
 
     do
         this.IsFixedTimeStep <- true
-        this.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/60.0)
+        this.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/120.0)
 
     override x.Initialize() =
     
@@ -66,7 +66,7 @@ type Chip8 () as this =
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "hidden"
+        let romName = "merlin"
         let code = Chip8Emulator.loadProgramCode($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
         emulator.initialize(code)
         logger.Info($"ROM '{romName}' was loaded")
@@ -101,7 +101,7 @@ type Chip8 () as this =
         for x in 0 .. int(emulator.displayWidth) - 1 do
             for y in 0 .. int(emulator.displayHeight) - 1 do
                 
-                let isSet = emulator.getDisplayValue(x,y)
+                let isSet = emulator.display.getUnpackedByte x y
 
                 let screenPositionX = x * blockWidth
                 let screenPositionY = y * blockHeight
@@ -112,7 +112,6 @@ type Chip8 () as this =
         spriteBatch.End()
 
         ()
-
 
 [<EntryPoint>]
 let main argv = 
