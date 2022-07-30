@@ -18,25 +18,31 @@ type Chip8 () as this =
     let mutable blockHeight = 0
 
     let emulator = Emulator()
+
+    //ORIGINAL CHIP KEYBOAD
+    //1 2 3 C
+    //4 5 6 D
+    //7 8 9 E
+    //A 0 B F
     let keymap = dict[
-        Keys.D1, 0;
-        Keys.D2, 1;
-        Keys.D3, 2;
-        Keys.D4, 3;
+        Keys.D1, 1;
+        Keys.D2, 2;
+        Keys.D3, 3;
+        Keys.D4, 12;
 
         Keys.Q, 4;
         Keys.W, 5;
-        Keys.F, 6;
-        Keys.P, 7;
+        Keys.E, 6;
+        Keys.R, 13;
 
-        Keys.A, 8;
-        Keys.R, 9;
-        Keys.S, 10;
-        Keys.T, 11;
+        Keys.A, 7;
+        Keys.S, 8;
+        Keys.D, 9;
+        Keys.F, 14;
 
-        Keys.Z, 12;
-        Keys.X, 13;
-        Keys.C, 14;
+        Keys.Z, 10;
+        Keys.X, 0;
+        Keys.C, 11;
         Keys.V, 15;
     ]
 
