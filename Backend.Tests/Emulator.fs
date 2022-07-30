@@ -402,14 +402,14 @@ type EmulatorTests ()=
 
         Assert.That(emulator.variables[0]>=min && emulator.variables[0]<=max)
 
-    [<TestCase(0uy, 0uy, 0xA7uy, 0, 0xA7uy, 1, 0uy)>] // top left corner
-    [<TestCase(56uy, 0uy, 0xA7uy, 7, 0xA7uy, 8, 0uy)>] // top right corner
-    [<TestCase(0uy, 31uy, 0xA7uy, 248, 0xA7uy, 249, 0uy)>] // bottom left corner
-    [<TestCase(56uy, 31uy, 0xA7uy, 255, 0xA7uy, 255, 0xA7uy)>] // bottom right corner
-    [<TestCase(1uy, 1uy, 0xA7uy, 8, 0x53uy, 9, 0x80uy)>] // affect multiple packed bytes
-    [<TestCase(56uy, 0uy, 0xA7uy, 7, 0xA7uy, 8, 0uy)>] //can draw last row byte
-    [<TestCase(56uy, 31uy, 0xA7uy, 255, 0xA7uy, 255, 0xA7uy)>] //can draw the last byte
-    [<TestCase(63uy, 31uy, 0xFFuy, 255, 1uy, 255, 1uy)>] //don't try to shift beyond display memory
+    [<TestCase(0uy, 0uy, 0b11001011uy, 0, 0b11001011uy, 1, 0uy)>] // top left corner
+    [<TestCase(56uy, 0uy, 0b11001011uy, 7, 0b11001011uy, 8, 0uy)>] // top right corner
+    [<TestCase(0uy, 31uy, 0b11001011uy, 248, 0b11001011uy, 249, 0uy)>] // bottom left corner
+    [<TestCase(56uy, 31uy, 0b11001011uy, 254, 0uy, 255, 0b11001011uy)>] // bottom right corner
+    [<TestCase(1uy, 1uy, 0b11001011uy, 8, 0b01100101uy, 9, 0b10000000uy)>] // affect multiple packed bytes
+    [<TestCase(56uy, 0uy, 0b11001011uy, 7, 0b11001011uy, 8, 0uy)>] //can draw last row byte
+    [<TestCase(56uy, 31uy, 0b11001011uy, 254, 0uy, 255, 0b11001011uy)>] //can draw the last byte
+    [<TestCase(63uy, 31uy, 0b11001011uy, 254, 0uy, 255, 1uy)>] //don't try to shift beyond display memory
     member this.opDXYN_1rowSprite_correct(x,y,sprite, displayPosition1, result1, displayPosition2, result2) = 
         let emulator = Emulator()
 
@@ -462,10 +462,10 @@ type EmulatorTests ()=
         Assert.AreEqual(result3, emulator.display[displayPosition3])
         Assert.AreEqual(result4, emulator.display[displayPosition4])
 
-    [<TestCase(1uy, 0, 0uy, 0uy, 0uy)>]
-    [<TestCase(1uy, 0, 1uy, 0uy, 1uy)>]
-    [<TestCase(0xFFuy, 1, 0uy, 0uy, 0uy)>]
-    [<TestCase(0xFFuy, 1, 0uy, 0xFFuy, 1uy)>]
+    [<TestCase(0b11000000uy, 2, 0uy, 0uy, 0uy)>]
+    [<TestCase(0b11000000uy, 2, 0xFFuy, 0uy, 1uy)>]
+    [<TestCase(0b00111111uy, 2, 0uy, 0b00111111uy, 0uy)>]
+    [<TestCase(0b00111111uy, 2, 0uy, 0b10111111uy, 1uy)>]
     member this.opDXYN_R15_correct(sprite, x, oldDisplay1, oldDisplay2, result) = 
         let emulator = Emulator()
 

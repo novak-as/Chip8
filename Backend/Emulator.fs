@@ -37,17 +37,26 @@ let splitOctet(octet:byte): byte*byte =
     let n2 = getLow4Bit(octet)
     (n1, n2)
 
-type SoundTimer () = 
+type DelayTimer () = 
     let mutable _value = 0uy
 
-    member this.set(value)= 
-        _value <- value
+    member this.value = _value
+    member this.set(value)= _value <- value
 
     member this.tick() = 
         if _value > 0uy then 
             _value <- _value - 1uy
-            if _value = 0uy then
-                Console.Beep()
+
+type SoundTimer () = 
+    let mutable _value = 0uy
+
+    member this.set(value)= _value <- value
+
+    member this.tick() = 
+        if _value > 0uy then 
+            //Console.Beep()
+            _value <- _value - 1uy
+                
 
 type Input (values: byte[]) = 
     let _status = Array.create 16 false
@@ -144,8 +153,8 @@ type Emulator ()=
     let _display = Display(_screenWidth, _screenHeight, _memory, _displaySectionShift)
     let _stack = Stack(_memory, _stackSectionShift, _stackBufferLength)
 
-    let mutable _delayTimer:byte = 0uy
-    let mutable _soundTimer = SoundTimer()
+    let _delayTimer = DelayTimer()
+    let _soundTimer = SoundTimer()
 
 
     let loadCode(code: ReadOnlySpan<byte>) = 
@@ -246,22 +255,19 @@ type Emulator ()=
         _variables[15] <- _variables[(int)x] &&& 1uy
         _variables[(int)x] <- _variables[(int)x] >>> 1
 
-        logger.Trace $"OK: "
+        logger.Trace $"OK: v[{x}] = v[{x}] >> 1: {_variables[(int)x]}, v[15]={_variables[15]}"
 
     let op_8XY7 (x:nible, y:nible) = 
-        if _variables[(int)x] > _variables[(int)y] then
-            _variables[15] <- 0uy
-        else
-            _variables[15] <- 1uy
+        _variables[15] <- if _variables[(int)x] > _variables[(int)y] then 0uy else 1uy
         _variables[(int)x] <- _variables[(int)y] - _variables[(int)x]
 
-        logger.Trace $"OK: "
+        logger.Trace $"OK: v[{x}] = v[{y}] - v[{x}]: {_variables[int(x)]}, v[15]={_variables[15]}"
 
     let op_8XYE (x:nible) = 
         _variables[15] <- (_variables[(int)x] &&& 0x80uy) >>> 7
         _variables[(int)x] <- _variables[(int)x] <<< 1
 
-        logger.Trace $"OK: "
+        logger.Trace $"OK: v[{x}] = v[{x}] << 1: {_variables[int(x)]}, v[15]={_variables[15]}"
 
     let op_9XY0 (x:nible, y:nible) = 
         if _variables[int(x)] <> _variables[int(y)] then
@@ -277,7 +283,7 @@ type Emulator ()=
     let op_BNNN (nnn:uint12) = 
         _programCounter <- uint16(_variables[0]) + nnn
 
-        logger.Trace $"OK: "
+        logger.Trace $"OK: pc = v[0] + {nnn}: {_programCounter}"
 
     let op_CXNN (x:nible, nn:byte)=
         let random = (byte)(_rnd.Next(0,256))
@@ -287,6 +293,16 @@ type Emulator ()=
 
     let op_DXYN (x:byte, y:byte, n:byte)=
 
+        // I'm feeling stupid to write this since there should be an ellegant solution
+        let rec detectChanged (val1, val2, shift) =
+            let pos1 = (val1 &&& (1uy <<< shift)) >>> shift
+            let pos2 = (val2 &&& (1uy <<< shift)) >>> shift
+
+            match (shift = 8, pos1, pos2) with
+                | (true, _, _) -> false
+                | (false, 1uy, 1uy) -> true
+                | (_,_,_) -> detectChanged(val1, val2, shift+1)  
+
         let mutable collisionDetected = false
 
         let coordinateX = _variables[int(x)]
@@ -295,20 +311,20 @@ type Emulator ()=
         for i in 0uy .. n - 1uy do
 
             let addr = int(coordinateX) / 8 + (int(coordinateY) + int(i)) * _display.width/8
-
+                
             let sprite = _memory[int(_i)+int(i)]
             let shift = int(coordinateX) % 8
 
             let firstPacked = _display.memory[addr]
-            let firstSprite = sprite >>> shift
+            let firstSprite = sprite >>> shift 
             _display.memory[addr] <- firstPacked ^^^ firstSprite
-            collisionDetected <- collisionDetected || firstPacked <> (firstPacked &&& (~~~ firstSprite))
+            collisionDetected <- collisionDetected || detectChanged(firstPacked, _display.memory[addr], 0)
             
             if shift > 0 && addr < 255 then
                 let secondPacked = _display.memory[addr+1]
-                let secondSprite = byte(uint16(sprite) <<< (8 - shift))
-                _display.memory[addr + 1] <- secondPacked ^^^ secondSprite
-                collisionDetected <- collisionDetected || secondPacked <> (secondPacked &&& (~~~ secondSprite))
+                let secondSprite = sprite <<< 8 - shift 
+                _display.memory[addr+1] <- secondPacked ^^^ secondSprite
+                collisionDetected <- collisionDetected || detectChanged(secondPacked, secondSprite, 0)
 
         if collisionDetected then
             _variables[15] <- 1uy
@@ -330,23 +346,23 @@ type Emulator ()=
         logger.Trace $"OK: Skip if input[V[{x}]] is pressed: {not key}"
 
     let op_FX07 (x:nible) = 
-        _variables[(int)x] <- _delayTimer
+        _variables[(int)x] <- _delayTimer.value
 
-        logger.Trace $"OK: "
+        logger.Trace $"OK: v[{x}] <- delayTimer"
 
     let op_FX0A (x:nible) = 
         _inputs.wait(int(x))
         logger.Trace $"Readkey"
 
     let op_FX15 (x:nible) = 
-        _delayTimer <- x
+        _delayTimer.set(x)
 
-        logger.Trace $""
+        logger.Trace $"Set delay timer to {x}"
 
     let op_FX18 (x:nible) = 
         _soundTimer.set(x)
 
-        logger.Trace $""
+        logger.Trace $"Set sound timer to {x}"
 
     let op_FX1E (x:nible) = 
         _i <- _i + (uint16)(_variables[(int)x])
@@ -396,6 +412,7 @@ type Emulator ()=
     member this.stack = System.ReadOnlyMemory(_memory, _stackSectionShift, _stackBufferLength).Span
     member this.inputs = _inputs
     member this.soundTimer = _soundTimer
+    member this.delayTimer = _delayTimer
     member this.programCounter = _programCounter
     member this.stackPointer = _stack.pointer
     member this.i = _i

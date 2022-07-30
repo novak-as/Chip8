@@ -60,7 +60,7 @@ type Chip8 () as this =
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "ufo"
+        let romName = "hidden"
         let code = Chip8Emulator.loadProgramCode($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
         emulator.initialize(code)
         logger.Info($"ROM '{romName}' was loaded")
@@ -69,6 +69,7 @@ type Chip8 () as this =
 
     override this.Update (gameTime) =
         try
+            emulator.delayTimer.tick()
             emulator.soundTimer.tick()
 
             emulator.tick()
