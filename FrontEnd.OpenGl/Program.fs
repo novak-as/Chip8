@@ -2,13 +2,17 @@
 open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input
 open System
+open System.IO
 open NLog
 open Chip8Emulator
 
 let logger = LogManager.GetCurrentClassLogger()
 
-type Chip8 () as this =
+type Chip8(path, romName) as this =
     inherit Game()
+
+    let _path = path
+    let _romName = romName
 
     let graphics = new GraphicsDeviceManager(this)
     let mutable spriteBatch = Unchecked.defaultof<SpriteBatch>
@@ -48,7 +52,7 @@ type Chip8 () as this =
 
     do
         this.IsFixedTimeStep <- true
-        this.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/120.0)
+        this.TargetElapsedTime <- TimeSpan.FromSeconds(1.0/60.0)
 
     override x.Initialize() =
     
@@ -66,10 +70,9 @@ type Chip8 () as this =
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
 
-        let romName = "merlin"
-        let code = Chip8Emulator.loadProgramCode($"C:\\Users\\onovak\\Documents\\repos_personal\\chip8\\roms\\{romName}")
+        let code = Chip8Emulator.loadProgramCode (Path.Combine [| _path; _romName |])
         emulator.initialize(code)
-        logger.Info($"ROM '{romName}' was loaded")
+        logger.Info($"ROM has been loaded")
 
         ()
 
@@ -112,9 +115,31 @@ type Chip8 () as this =
         spriteBatch.End()
 
         ()
+        
+
+let parseArgs args =
+
+    let tail2 list = list |> List.tail |> List.tail
+
+    let rec parseArgsInternal args path romName = 
+        match List.length(args) with 
+            | 1 -> (path, args[0])
+            | _ -> match args[0] with
+                | "--path" -> parseArgsInternal (tail2 args) args[1] romName
+                | _ -> raise (Exception($"Invalid argument {args[0]}"))
+
+    parseArgsInternal args "roms" String.Empty
+        
+
 
 [<EntryPoint>]
 let main argv = 
-    use g = new Chip8()
+
+    let args = Environment.GetCommandLineArgs () |> Array.toList |> List.tail
+
+    let (path, romName) = parseArgs args
+    logger.Info $"Path: {path}, Rom: {romName}"
+
+    use g = new Chip8(path, romName)
     g.Run()
     0

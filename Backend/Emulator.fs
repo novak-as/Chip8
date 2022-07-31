@@ -132,7 +132,7 @@ type Emulator ()=
     static let _codeSectionShift = 0x200
     static let _displaySectionShift = _totalMemory - _displayBufferLength
     static let _stackSectionShift = 0x0EA0
-    
+
     let mutable _programCounter:uint16 = uint16(_codeSectionShift)
     let _memory: byte[] = Array.create _totalMemory 0uy    
     let _rnd = Random()
@@ -470,8 +470,7 @@ type Emulator ()=
             let command2 = _memory[int(_programCounter)+1]
 
             try
-                fetch () 
-                    |> execute
+                fetch () |> execute
             with 
                 | ex -> 
                     let message = $"Unable to process with opcode {command1:X2} {command2:X2} at position {_programCounter-2us}"
