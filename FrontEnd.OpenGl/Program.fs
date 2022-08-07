@@ -18,8 +18,8 @@ type Chip8(path, romName) as this =
     let mutable spriteBatch = Unchecked.defaultof<SpriteBatch>
 
     let mutable texture:Texture2D = null
-    let mutable blockWidth = 0
-    let mutable blockHeight = 0
+    let mutable blockSize = Point.Zero
+    let mutable margin = Point.Zero
 
     let emulator = Emulator()
 
@@ -64,8 +64,10 @@ type Chip8(path, romName) as this =
         texture <- Texture2D(this.GraphicsDevice, 1,1)
         texture.SetData([| Color.White |])
 
-        blockWidth <- graphics.GraphicsDevice.Viewport.Width / emulator.displayWidth
-        blockHeight <- graphics.GraphicsDevice.Viewport.Height / emulator.displayHeight 
+        blockSize <- Point((graphics.GraphicsDevice.Viewport.Width / emulator.displayWidth),
+                            (graphics.GraphicsDevice.Viewport.Height / emulator.displayHeight))
+        margin <- Point((graphics.GraphicsDevice.Viewport.Width - blockSize.X * emulator.displayWidth) / 2,
+                         (graphics.GraphicsDevice.Viewport.Height - blockSize.Y * emulator.displayHeight) / 2)
 
         spriteBatch <- new SpriteBatch(x.GraphicsDevice)
         base.Initialize()
@@ -104,13 +106,12 @@ type Chip8(path, romName) as this =
         for x in 0 .. int(emulator.displayWidth) - 1 do
             for y in 0 .. int(emulator.displayHeight) - 1 do
                 
-                let isSet = emulator.display.getUnpackedByte x y
+                let isSet = emulator.display.getUnpackedValue x y
 
-                let screenPositionX = x * blockWidth
-                let screenPositionY = y * blockHeight
+                let screenPosition = Point(int(Math.Round(float(x) * float(blockSize.X))), 
+                                             int(Math.Round(float(y) * float(blockSize.Y))))
 
-                spriteBatch.Draw(texture, Rectangle(screenPositionX, screenPositionY, blockWidth, blockHeight),
-                            if isSet then Color.White else Color.Black)
+                spriteBatch.Draw(texture, Rectangle(screenPosition + margin, blockSize), if isSet then Color.White else Color.Black)
 
         spriteBatch.End()
 

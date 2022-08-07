@@ -102,22 +102,23 @@ type Stack (memory: byte[], shift, length) =
 
 type Display (width, height, memory: byte[], shift) = 
 
-    member this.width = width
+    member this.unpackedWidth = width
+    member this.packedWidth = width/8
     member this.height = height
-    member this.memory = memory.AsSpan(shift, width / 8 * height)
+    member this.memory = memory.AsSpan(shift, this.packedWidth * height)
 
-    member this.getUnpackedByte x y = 
+    member this.getUnpackedValue x y = 
         let packedX = x / 8
         let packedBit = 7 - x % 8
 
-        let spritePosition = packedX + y*width / 8
+        let spritePosition = packedX + y* this.packedWidth
 
         let sprite = this.memory[spritePosition]
         let value = sprite >>> packedBit
         (value &&& 1uy) = 1uy
 
-    member this.setDisplayPackedByte2D x y value = 
-        let address = y * width/8 + x
+    member this.setPackedValue x y value = 
+        let address = y * this.packedWidth + x
         this.memory[address] <- value        
 
 
@@ -299,7 +300,7 @@ type Emulator ()=
             detectChanged(packed, sprite, 0)
 
         let drawRow x y spriteAddress =
-            let addr = x / 8 + y * _display.width/8
+            let addr = x / 8 + y * _display.unpackedWidth/8
             let sprite = _memory[spriteAddress]
             let shift = x % 8
 
@@ -483,5 +484,7 @@ let loadProgramCode filename =
     reader.ReadBytes(int(reader.BaseStream.Length)).AsSpan()
 
 let createMemoryDump (buffer: ReadOnlySpan<byte>) = 
-    use writer = new BinaryWriter(File.Create($"{Random().NextInt64()}.hex"))
+    let name = string(Random().NextInt64())
+    use writer = new BinaryWriter(File.Create($"memory_{name}.hex"))
     writer.Write(buffer)
+

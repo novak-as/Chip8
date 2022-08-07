@@ -65,9 +65,9 @@ type DisplayTests () =
         let buffer = Array.create 256 0uy
         let display = Display(64, 32, buffer, 0)
 
-        display.setDisplayPackedByte2D x y 0xAAuy
+        display.setPackedValue x y 0xAAuy
 
-        let addr = x + display.width/8 * y
+        let addr = x + display.unpackedWidth/8 * y
         Assert.AreEqual(0xAAuy, display.memory[addr])
 
     [<TestCase(0,0)>]
@@ -78,16 +78,16 @@ type DisplayTests () =
         let buffer = Array.create 256 0uy
         let display = Display(64, 32, buffer, 0)
 
-        display.memory[x + display.width/8*y] <- 0xA9uy
+        display.memory[x + display.unpackedWidth/8*y] <- 0xA9uy
 
-        Assert.AreEqual(true, display.getUnpackedByte (x*8) y)
-        Assert.AreEqual(false, display.getUnpackedByte (x*8+1) y)
-        Assert.AreEqual(true, display.getUnpackedByte (x*8+2) y)
-        Assert.AreEqual(false, display.getUnpackedByte (x*8+3) y)
-        Assert.AreEqual(true, display.getUnpackedByte (x*8+4) y)
-        Assert.AreEqual(false, display.getUnpackedByte (x*8+5) y)
-        Assert.AreEqual(false, display.getUnpackedByte (x*8+6) y)
-        Assert.AreEqual(true, display.getUnpackedByte (x*8+7) y)
+        Assert.AreEqual(true, display.getUnpackedValue (x*8) y)
+        Assert.AreEqual(false, display.getUnpackedValue (x*8+1) y)
+        Assert.AreEqual(true, display.getUnpackedValue (x*8+2) y)
+        Assert.AreEqual(false, display.getUnpackedValue (x*8+3) y)
+        Assert.AreEqual(true, display.getUnpackedValue (x*8+4) y)
+        Assert.AreEqual(false, display.getUnpackedValue (x*8+5) y)
+        Assert.AreEqual(false, display.getUnpackedValue (x*8+6) y)
+        Assert.AreEqual(true, display.getUnpackedValue (x*8+7) y)
 
 [<TestFixture>]
 type EmulatorTests ()=
